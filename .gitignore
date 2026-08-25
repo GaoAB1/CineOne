@@ -6,3 +6,4 @@ server/data/
 client/dist/
 *.log
 .DS_Store
+.workbuddy/
