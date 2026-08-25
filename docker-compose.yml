@@ -1,0 +1,17 @@
+services:
+  cineone:
+    build: .
+    image: cineone:latest
+    container_name: cineone
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 生产环境强烈建议显式注入 JWT_SECRET；缺省时首次启动自动生成并持久化到数据卷
+      # - JWT_SECRET=change-me-to-a-long-random-string
+      - NODE_ENV=production
+    volumes:
+      - cineone-data:/app/data
+
+volumes:
+  cineone-data:

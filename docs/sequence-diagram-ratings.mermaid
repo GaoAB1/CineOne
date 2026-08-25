@@ -1,0 +1,46 @@
+%% 详情页四源评分聚合（TMDB 实时 + 缓存回源 + 手动兜底）
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant DP as DetailPage
+    participant HR as useRatings hook
+    participant RS as ratingsService
+    participant RC as ratings_cache 表
+    participant RP as ratingsProvider<br/>(第三方聚合接口)
+    participant TS as tmdbService
+
+    U->>DP: 打开 /detail/tv/1396
+    DP->>TS: GET /api/tmdb/detail/tv/1396 (经后端代理)
+    TS-->>DP: 详情 + TMDB 评分(实时)
+
+    par 并行加载四源中的三个外部源
+        DP->>HR: useRatings('tv', 1396)
+        HR->>RS: GET /api/ratings/tv/1396
+        RS->>RC: SELECT * WHERE tmdb_id=1396 AND source IN('douban','tomato','popcorn')
+
+        alt 三条记录均在 TTL 内且非 manual_override
+            RC-->>RS: 缓存命中
+            RS-->>HR: 直接返回缓存分数 (stale=false)
+        else 任一源缺失或 expires_at 已过
+            RS->>RP: 批量查询第三方聚合接口
+            alt 回源成功
+                RP-->>RS: douban 9.3 / tomato 96% / popcorn 97%
+                RS->>RC: UPSERT 三行(fetched_at=now, expires_at=now+TTL)
+            else 回源失败(超时/接口不可用)
+                RS->>RC: 读取既有 manual_override 行作为兜底
+                Note over RS: 无兜底则该源 score=null,<br/>rawText=null（前端渲染"暂无"）
+            end
+            RS-->>HR: 返回聚合结果 (失败源 stale=true)
+        end
+        HR-->>DP: 四源 RatingSource[]
+    end
+
+    DP->>U: 渲染评分区：TMDB ★8.6 · 豆瓣 9.3 · 烂番茄 96% · 爆米花 97%
+    Note over DP: 任一源 stale=true 时胶囊角标显示"缓存"
+
+    opt 管理员手动修正
+        U->>DP: 点击某源胶囊"修正"
+        DP->>RS: PUT /api/ratings/tv/1396/manual {source:'douban', score:9.3}
+        RS->>RC: UPSERT (manual_override=1, expires_at='9999-12-31')
+        RS-->>DP: 修正生效，此后不再回源覆盖
+    end
