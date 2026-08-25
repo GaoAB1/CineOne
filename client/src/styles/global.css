@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== 全局基础 ===== */
+html {
+  color-scheme: dark;
+}
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font-system);
+  background-color: var(--color-bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+
+/* Apple 字阶工具类 */
+.type-large-title { font-size: 34px; font-weight: 600; letter-spacing: 0.37px; }
+.type-title { font-size: 22px; font-weight: 600; }
+.type-headline { font-size: 17px; font-weight: 600; }
+.type-body { font-size: 17px; font-weight: 400; }
+.type-caption { font-size: 12px; font-weight: 400; }
+
+/* ===== 毛玻璃材质（顶栏/侧栏/弹层复用） ===== */
+.glass {
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+
+/* ===== 滚动条（桌面端细样式） ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 横向卡片流隐藏滚动条 */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 卡片悬浮微缩放（hover 浮起） */
+.hover-lift {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.hover-lift:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--shadow-md);
+}
+.hover-lift:active {
+  transform: scale(0.98);
+}
+
+/* 按压弹性反馈 */
+.press-spring {
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+.press-spring:active {
+  transform: scale(0.96);
+}
+
+/* 主题切换平滑 color 过渡 */
+.theme-transition,
+.theme-transition * {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-out);
+}
+
+/* ===== prefers-reduced-motion 降级 ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .hover-lift:hover {
+    transform: none;
+  }
+}
