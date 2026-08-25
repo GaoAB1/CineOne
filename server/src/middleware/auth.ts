@@ -19,15 +19,22 @@ export interface AuthedRequest extends Request {
   user?: UserPublic;
 }
 
-function verifyToken(token: string): TokenPayload {
+const VALID_ROLES: readonly string[] = ['admin', 'member'];
+
+/** 校验并解析 token；role 不在白名单时一律拒绝（fail-closed） */
+export function verifyToken(token: string): TokenPayload {
   try {
     const decoded = jwt.verify(token, getConfig().jwtSecret);
     if (typeof decoded === 'string' || decoded.sub == null) {
       throw new Error('bad payload');
     }
-    const role = decoded.role === 'member' ? 'member' : 'admin';
-    return { sub: Number(decoded.sub), role };
-  } catch {
+    const role = typeof decoded.role === 'string' ? decoded.role : '';
+    if (!VALID_ROLES.includes(role)) {
+      throw new ApiError(1002, '登录身份非法，请重新登录', 401);
+    }
+    return { sub: Number(decoded.sub), role: role as 'admin' | 'member' };
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
     throw new ApiError(1002, '登录状态无效或已过期', 401);
   }
 }
