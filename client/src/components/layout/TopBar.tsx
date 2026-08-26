@@ -46,7 +46,10 @@ export default function TopBar({ title, username, onLogout }: TopBarProps) {
         style={{ borderBottom: scrolled ? '1px solid var(--border-light)' : '1px solid transparent' }}
         bordered={false}
       >
-        <h1 className="type-title mr-auto truncate">{title}</h1>
+        <div className="mr-auto flex min-w-0 items-center gap-2">
+          <i className="ri-film-fill shrink-0 text-[22px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
+          <h1 className="type-title truncate">{title}</h1>
+        </div>
 
         <button
           type="button"
