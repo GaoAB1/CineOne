@@ -115,9 +115,23 @@ CineOne/
 - **tmdb**：status / home 分区聚合 / search / detail 代理（限流保护）
 - **ratings**：四源评分聚合查询 + 管理员手动修正（manual_override 永不被回源覆盖）
 - **watchlist**：追剧 CRUD + 进度推进（行按 user_id 隔离）
+- **emby**：status / sync（管理员）/ play 跳转链接——Emby 媒体库同步与播放状态回写
+- **calendar / upcoming**：在看剧集播出日历、想看订阅 CRUD
+- **moviepilot**：status / subscribed 查重 / subscribe 推送（subscribe_log 全量留痕）
+- **tmdb/upcoming**：首页即将上映聚合（电影+电视 90 天内）
 
 错误码：`0` 成功；`1001` 参数校验失败；`1002` 认证失败；`1003` 权限不足；`1004` 不存在；
 `2001` TMDB Key 未配置(428)；`2002` TMDB 请求失败(502)；`2003` 第三方评分源降级(HTTP 200 内标记)；`3000` 服务器内部错误。
+
+## 外部服务集成（设置页配置，存 settings 表）
+
+| 配置项 | 说明 |
+|--------|------|
+| TMDB API Key | 影视数据源（必配） |
+| OMDB API Key | 烂番茄评分与外链（omdbapi.com 免费申请） |
+| 豆瓣聚合地址 | 第三方豆瓣评分聚合服务（可选，填则可覆盖豆瓣/爆米花源） |
+| Emby 服务器地址 / API Key / 用户 ID | 媒体库同步 + 「在 Emby 中播放」 |
+| MoviePilot 地址 / Token | 详情页一键订阅追更（Token 即 MoviePilot 设置页的 API_TOKEN，走 X-API-KEY 头） |
 
 ## 环境变量
 
@@ -126,4 +140,3 @@ CineOne/
 | `PORT` | `3000` | 监听端口 |
 | `JWT_SECRET` | 自动生成持久化 | JWT 签名密钥 |
 | `DB_PATH` | `<server>/data/cineone.db` | SQLite 文件路径 |
-| `RATINGS_API_URL` | 空 | 第三方评分聚合接口地址（可选；空则评分降级为缓存/手动修正/暂无） |
