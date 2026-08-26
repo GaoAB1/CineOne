@@ -67,3 +67,23 @@ export interface HomeSection {
   title: string;
   items: MediaItem[];
 }
+
+// ---- Emby ----
+
+export interface EmbyStatus {
+  configured: boolean;
+  verified: boolean;
+  serverName: string | null;
+  itemCount: number;
+  lastSync: string | null;
+}
+
+export interface EmbySyncResult {
+  synced: number;
+  skipped: number;
+  matchedToWatchlist: number;
+}
+
+export interface EmbyPlayUrl {
+  url: string;
+}

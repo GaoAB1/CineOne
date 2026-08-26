@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchDetail, listWatchlist, createWatchItem, patchWatchItem, deleteWatchItem } from '../api/endpoints';
+import { fetchDetail, listWatchlist, createWatchItem, patchWatchItem, deleteWatchItem, fetchEmbyPlayUrl } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { DetailPayload, MediaType, SeasonSnapshotEntry, WatchStatus } from '../api/types';
 import PosterFallback from '../components/media/PosterFallback';
@@ -49,6 +49,9 @@ export default function DetailPage() {
   const [watchEntry, setWatchEntry] = useState<WatchEntry | null>(null);
   const [watchBusy, setWatchBusy] = useState(false);
   const [watchMsg, setWatchMsg] = useState<string | null>(null);
+
+  // Emby 播放跳转（404 / 未配置时为 null，不渲染按钮）
+  const [embyPlayUrl, setEmbyPlayUrl] = useState<string | null>(null);
 
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
@@ -108,6 +111,22 @@ export default function DetailPage() {
   useEffect(() => {
     void loadWatchEntry();
   }, [loadWatchEntry]);
+
+  // ---- Emby 播放地址（静默探测：未配置/未同步时不展示入口） ----
+  useEffect(() => {
+    if (!mediaType || !Number.isInteger(tmdbId)) return;
+    let cancelled = false;
+    fetchEmbyPlayUrl(tmdbId, mediaType)
+      .then((res) => {
+        if (!cancelled) setEmbyPlayUrl(res.url);
+      })
+      .catch(() => {
+        if (!cancelled) setEmbyPlayUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaType, tmdbId]);
 
   const backdropUrl = useMemo(() => {
     if (!detail?.backdropPath) return undefined;
@@ -301,6 +320,17 @@ export default function DetailPage() {
       <GlassPanel className="mb-6 p-5" bordered>
         <h2 className="type-headline mb-3">追剧</h2>
         {watchMsg && <p className="type-caption mb-2 text-txt-secondary">{watchMsg}</p>}
+        {embyPlayUrl && (
+          <div className="mb-4">
+            <Button
+              variant="filled"
+              icon={<i className="ri-play-fill text-[20px]" aria-hidden />}
+              onClick={() => window.open(embyPlayUrl, '_blank', 'noreferrer')}
+            >
+              在 Emby 中播放
+            </Button>
+          </div>
+        )}
         {!watchEntry ? (
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="filled" loading={watchBusy} onClick={() => void addToWatchlist()}>

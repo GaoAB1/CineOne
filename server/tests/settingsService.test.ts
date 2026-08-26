@@ -31,7 +31,12 @@ describe('settingsService', () => {
     // M4 新增评分回源键：默认均为空串（未配置 → 降级为 null）
     assert.equal(getSetting('omdb_api_key'), '');
     assert.equal(getSetting('douban_api_base'), '');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 5);
+    // M1 新增 Emby 键：默认均为空串（未配置 → 功能降级不可用）
+    assert.equal(getSetting('emby_server_url'), '');
+    assert.equal(getSetting('emby_api_key'), '');
+    assert.equal(getSetting('emby_user_id'), '');
+    assert.equal(getSetting('emby_last_sync'), '');
+    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 9);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {

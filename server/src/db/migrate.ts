@@ -50,6 +50,22 @@ const DDL_STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_ratings_expires ON ratings_cache(expires_at)`,
   `CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist(user_id, status)`,
+  // ---- M1 Emby 接入 ----
+  `CREATE TABLE IF NOT EXISTS emby_items (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id           TEXT    NOT NULL,
+    server_id         TEXT,
+    tmdb_id           INTEGER,
+    media_type        TEXT    CHECK (media_type IN ('movie','tv')),
+    title             TEXT    NOT NULL,
+    year              INTEGER,
+    poster_url        TEXT,
+    played_percentage REAL    DEFAULT 0,
+    played            INTEGER NOT NULL DEFAULT 0,
+    synced_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (item_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_emby_tmdb ON emby_items(tmdb_id, media_type)`,
 ];
 
 export function runMigrate(): void {

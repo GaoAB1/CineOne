@@ -16,6 +16,7 @@ import settingsRoutes from './routes/settings.routes';
 import tmdbRoutes from './routes/tmdb.routes';
 import ratingsRoutes from './routes/ratings.routes';
 import watchlistRoutes from './routes/watchlist.routes';
+import embyRoutes from './routes/emby.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp(): Express {
   app.use('/api/tmdb', tmdbRoutes);
   app.use('/api/ratings', ratingsRoutes);
   app.use('/api/watchlist', watchlistRoutes);
+  app.use('/api/emby', embyRoutes);
 
   // ---- 生产静态托管：server/dist → ../../client/dist ----
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');

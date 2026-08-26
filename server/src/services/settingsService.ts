@@ -1,6 +1,7 @@
 /**
  * settings 表读写封装。
  * 已知键白名单：tmdb_api_key / omdb_api_key / douban_api_base /
+ * emby_server_url / emby_api_key / emby_user_id / emby_last_sync /
  * ratings_ttl_hours / theme_default
  */
 
@@ -66,6 +67,9 @@ export function getSettingsView(): Record<string, unknown> {
   const apiKey = getSetting('tmdb_api_key');
   const omdbKey = getSetting('omdb_api_key');
   const doubanBase = getSetting('douban_api_base').trim();
+  const embyUrl = getSetting('emby_server_url').trim();
+  const embyKey = getSetting('emby_api_key');
+  const embyUserId = getSetting('emby_user_id').trim();
   return {
     tmdb_api_key_masked: maskApiKey(apiKey),
     tmdb_api_key_set: apiKey.trim().length > 0,
@@ -74,6 +78,13 @@ export function getSettingsView(): Record<string, unknown> {
     // douban_api_base 非密钥，直接回显明文便于用户核对
     douban_api_base: doubanBase,
     douban_api_base_set: doubanBase.length > 0,
+    // Emby：地址/用户 ID 非密钥回显明文；API Key 只给打码与 set 标志
+    emby_server_url: embyUrl,
+    emby_server_url_set: embyUrl.length > 0,
+    emby_api_key_masked: maskApiKey(embyKey),
+    emby_api_key_set: embyKey.trim().length > 0,
+    emby_user_id: embyUserId,
+    emby_user_id_set: embyUserId.length > 0,
     ratings_ttl_hours: Number.parseInt(getSetting('ratings_ttl_hours'), 10) || 72,
     theme_default: getSetting('theme_default') || 'dark',
   };

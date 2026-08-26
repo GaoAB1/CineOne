@@ -11,6 +11,7 @@ import InputField from '../components/ui/InputField';
 import Switch from '../components/ui/Switch';
 import GlassPanel from '../components/ui/GlassPanel';
 import Spinner from '../components/ui/Spinner';
+import EmbySection from '../components/settings/EmbySection';
 import { useAuth } from '../stores/AuthContext';
 import { useTheme } from '../stores/ThemeContext';
 
@@ -195,6 +196,9 @@ export default function SettingsPage() {
           <p className="type-caption mt-3 text-txt-tertiary">默认 72 小时；过期后在访问详情页时回源刷新。</p>
         </Section>
       )}
+
+      {/* Emby 媒体库 */}
+      <EmbySection />
 
       {/* 账户 */}
       <Section title="账户" icon="ri-user-3-line">

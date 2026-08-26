@@ -5,6 +5,9 @@
 import { request } from './http';
 import type {
   DetailPayload,
+  EmbyPlayUrl,
+  EmbyStatus,
+  EmbySyncResult,
   HomeSection,
   MediaItem,
   MediaType,
@@ -135,4 +138,18 @@ export function patchWatchItem(id: number, patch: PatchWatchInput): Promise<Watc
 
 export function deleteWatchItem(id: number): Promise<null> {
   return request(`/watchlist/${id}`, { method: 'DELETE' });
+}
+
+// ---- emby ----
+
+export function fetchEmbyStatus(): Promise<EmbyStatus> {
+  return request('/emby/status');
+}
+
+export function triggerEmbySync(): Promise<EmbySyncResult> {
+  return request('/emby/sync', { method: 'POST' });
+}
+
+export function fetchEmbyPlayUrl(tmdbId: number, mediaType: MediaType): Promise<EmbyPlayUrl> {
+  return request(`/emby/play/${tmdbId}/${mediaType}`);
 }

@@ -11,6 +11,14 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   omdb_api_key: '',
   /** 社区评分聚合接口基址（豆瓣+全源兜底；空串表示未配置） */
   douban_api_base: '',
+  /** Emby 服务器地址（如 http://192.168.1.10:8096；空串表示未配置） */
+  emby_server_url: '',
+  /** Emby API Key（空串表示未配置，对应功能降级不可用） */
+  emby_api_key: '',
+  /** Emby 用户 ID（媒体库拉取走 /Users/{id}/Items；空串表示未配置） */
+  emby_user_id: '',
+  /** Emby 上次全量/增量同步时间（服务端写入，用户无需手填） */
+  emby_last_sync: '',
   /** 第三方评分缓存 TTL（小时） */
   ratings_ttl_hours: '72',
   /** 默认主题偏好 */
