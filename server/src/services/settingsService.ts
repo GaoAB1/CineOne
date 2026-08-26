@@ -2,7 +2,8 @@
  * settings 表读写封装。
  * 已知键白名单：tmdb_api_key / omdb_api_key / douban_api_base /
  * emby_server_url / emby_api_key / emby_user_id / emby_last_sync /
- * ratings_ttl_hours / theme_default
+ * moviepilot_server_url / moviepilot_token /
+ * calendar_last_sync / ratings_ttl_hours / theme_default
  */
 
 import { getDb } from '../db/database';
@@ -70,6 +71,8 @@ export function getSettingsView(): Record<string, unknown> {
   const embyUrl = getSetting('emby_server_url').trim();
   const embyKey = getSetting('emby_api_key');
   const embyUserId = getSetting('emby_user_id').trim();
+  const mpUrl = getSetting('moviepilot_server_url').trim();
+  const mpToken = getSetting('moviepilot_token');
   return {
     tmdb_api_key_masked: maskApiKey(apiKey),
     tmdb_api_key_set: apiKey.trim().length > 0,
@@ -85,6 +88,11 @@ export function getSettingsView(): Record<string, unknown> {
     emby_api_key_set: embyKey.trim().length > 0,
     emby_user_id: embyUserId,
     emby_user_id_set: embyUserId.length > 0,
+    // MoviePilot：地址非密钥回显明文；Token 只给打码与 set 标志
+    moviepilot_server_url: mpUrl,
+    moviepilot_server_url_set: mpUrl.length > 0,
+    moviepilot_token_masked: maskApiKey(mpToken),
+    moviepilot_token_set: mpToken.trim().length > 0,
     ratings_ttl_hours: Number.parseInt(getSetting('ratings_ttl_hours'), 10) || 72,
     theme_default: getSetting('theme_default') || 'dark',
   };

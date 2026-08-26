@@ -79,6 +79,18 @@ const DDL_STATEMENTS: string[] = [
     added_at     TEXT    NOT NULL DEFAULT (datetime('now')),
     UNIQUE (user_id, tmdb_id, media_type)
   )`,
+  // ---- M2 MoviePilot 订阅 ----
+  `CREATE TABLE IF NOT EXISTS subscribe_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tmdb_id    INTEGER NOT NULL,
+    media_type TEXT    NOT NULL CHECK (media_type IN ('movie','tv')),
+    payload    TEXT,
+    ok         INTEGER NOT NULL DEFAULT 0,
+    message    TEXT,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_subscribe_log_user ON subscribe_log(user_id, created_at)`,
 ];
 
 export function runMigrate(): void {

@@ -15,6 +15,8 @@ import {
   listUpcoming,
   createUpcoming,
   deleteUpcoming,
+  fetchMoviepilotSubscribed,
+  subscribeMoviepilot,
 } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { DetailPayload, MediaType, SeasonSnapshotEntry, WatchStatus } from '../api/types';
@@ -25,6 +27,8 @@ import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import GlassPanel from '../components/ui/GlassPanel';
 import SegmentedControl from '../components/ui/SegmentedControl';
+import SubscribeDialog from '../components/media/SubscribeDialog';
+import Toast from '../components/ui/Toast';
 import useRatings from '../hooks/useRatings';
 import { useAuth } from '../stores/AuthContext';
 
@@ -66,6 +70,12 @@ export default function DetailPage() {
   // 想看（未上映条目）：upcomingId 存在即已加入
   const [upcomingId, setUpcomingId] = useState<number | null>(null);
   const [upcomingBusy, setUpcomingBusy] = useState(false);
+
+  // MoviePilot 订阅：MVP 仅单向订阅
+  const [mpSubscribed, setMpSubscribed] = useState(false);
+  const [mpDialogOpen, setMpDialogOpen] = useState(false);
+  const [mpBusy, setMpBusy] = useState(false);
+  const [mpToast, setMpToast] = useState<{ ok: boolean; text: string } | null>(null);
 
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
@@ -171,6 +181,22 @@ export default function DetailPage() {
     return detail.releaseDate.slice(0, 10) > todayStr;
   }, [detail]);
 
+  // ---- MoviePilot 订阅状态回显（静默） ----
+  useEffect(() => {
+    if (!mediaType || !Number.isInteger(tmdbId)) return;
+    let cancelled = false;
+    fetchMoviepilotSubscribed(tmdbId, mediaType)
+      .then((res) => {
+        if (!cancelled) setMpSubscribed(Boolean(res.subscribed));
+      })
+      .catch(() => {
+        // 静默：查询失败按未订阅处理，点击订阅时后端会兜底
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaType, tmdbId]);
+
   const backdropUrl = useMemo(() => {
     if (!detail?.backdropPath) return undefined;
     return `https://image.tmdb.org/t/p/w1280${detail.backdropPath}`;
@@ -274,6 +300,32 @@ export default function DetailPage() {
       // 静默：失败时保留已加入态，下次可重试取消
     } finally {
       setUpcomingBusy(false);
+    }
+  };
+
+  // ---- MoviePilot 订阅动作 ----
+  const confirmSubscribe = async (season?: number): Promise<void> => {
+    if (!mediaType || !detail) return;
+    setMpBusy(true);
+    try {
+      const yearNum = detail.releaseDate ? Number.parseInt(detail.releaseDate.slice(0, 4), 10) : NaN;
+      await subscribeMoviepilot({
+        tmdb_id: tmdbId,
+        media_type: mediaType,
+        title: detail.title,
+        year: Number.isInteger(yearNum) ? yearNum : undefined,
+        season,
+      });
+      setMpSubscribed(true);
+      setMpDialogOpen(false);
+      setMpToast({ ok: true, text: '订阅成功，MoviePilot 将自动追更' });
+    } catch (err) {
+      setMpToast({
+        ok: false,
+        text: err instanceof ApiClientError ? err.message : '订阅失败',
+      });
+    } finally {
+      setMpBusy(false);
     }
   };
 
@@ -403,15 +455,31 @@ export default function DetailPage() {
       <GlassPanel className="mb-6 p-5" bordered>
         <h2 className="type-headline mb-3">追剧</h2>
         {watchMsg && <p className="type-caption mb-2 text-txt-secondary">{watchMsg}</p>}
-        {embyPlayUrl && (
-          <div className="mb-4">
-            <Button
-              variant="filled"
-              icon={<i className="ri-play-fill text-[20px]" aria-hidden />}
-              onClick={() => window.open(embyPlayUrl, '_blank', 'noreferrer')}
-            >
-              在 Emby 中播放
-            </Button>
+        {(embyPlayUrl || !mpSubscribed) && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            {embyPlayUrl && (
+              <Button
+                variant="filled"
+                icon={<i className="ri-play-fill text-[20px]" aria-hidden />}
+                onClick={() => window.open(embyPlayUrl, '_blank', 'noreferrer')}
+              >
+                在 Emby 中播放
+              </Button>
+            )}
+            {!mpSubscribed && (
+              <Button
+                variant="tinted"
+                icon={<i className="ri-notification-3-line" aria-hidden />}
+                onClick={() => setMpDialogOpen(true)}
+              >
+                订阅
+              </Button>
+            )}
+            {mpSubscribed && (
+              <span className="inline-flex min-h-[44px] items-center gap-2 rounded-sm border border-line px-5 text-[17px] font-medium text-txt-tertiary">
+                <i className="ri-notification-3-line" aria-hidden /> 已订阅
+              </span>
+            )}
           </div>
         )}
         {!watchEntry ? (
@@ -534,6 +602,24 @@ export default function DetailPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* MoviePilot 订阅确认弹层 */}
+      {mpDialogOpen && detail && (
+        <SubscribeDialog
+          title={detail.title}
+          year={detail.releaseDate?.slice(0, 4)}
+          mediaType={mediaType}
+          seasons={Array.isArray(detail.seasons) ? detail.seasons : []}
+          busy={mpBusy}
+          onConfirm={(season) => void confirmSubscribe(season)}
+          onClose={() => setMpDialogOpen(false)}
+        />
+      )}
+
+      {/* Toast 提示 */}
+      {mpToast && (
+        <Toast message={mpToast.text} ok={mpToast.ok} onClose={() => setMpToast(null)} />
       )}
     </div>
   );

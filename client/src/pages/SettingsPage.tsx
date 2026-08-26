@@ -12,6 +12,7 @@ import Switch from '../components/ui/Switch';
 import GlassPanel from '../components/ui/GlassPanel';
 import Spinner from '../components/ui/Spinner';
 import EmbySection from '../components/settings/EmbySection';
+import MoviePilotSection from '../components/settings/MoviePilotSection';
 import { useAuth } from '../stores/AuthContext';
 import { useTheme } from '../stores/ThemeContext';
 
@@ -199,6 +200,9 @@ export default function SettingsPage() {
 
       {/* Emby 媒体库 */}
       <EmbySection />
+
+      {/* MoviePilot */}
+      <MoviePilotSection />
 
       {/* 账户 */}
       <Section title="账户" icon="ri-user-3-line">

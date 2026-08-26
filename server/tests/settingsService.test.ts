@@ -38,7 +38,10 @@ describe('settingsService', () => {
     assert.equal(getSetting('emby_last_sync'), '');
     // M3 新增日历键：服务端写入的最近刷新时间
     assert.equal(getSetting('calendar_last_sync'), '');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 10);
+    // M2 新增 MoviePilot 键：默认均为空串（未配置 → 功能降级不可用）
+    assert.equal(getSetting('moviepilot_server_url'), '');
+    assert.equal(getSetting('moviepilot_token'), '');
+    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 12);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {

@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   emby_last_sync: '',
   /** 播出日历最近一次成功刷新时间（服务端写入；内存缓存 TTL 1 小时） */
   calendar_last_sync: '',
+  /** MoviePilot 服务器地址（如 http://192.168.1.10:3000；空串表示未配置） */
+  moviepilot_server_url: '',
+  /** MoviePilot API Token（对应其设置项 API_TOKEN；空串表示未配置） */
+  moviepilot_token: '',
   /** 第三方评分缓存 TTL（小时） */
   ratings_ttl_hours: '72',
   /** 默认主题偏好 */

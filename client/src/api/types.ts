@@ -120,3 +120,23 @@ export interface CreateUpcomingInput {
   poster_path?: string;
   release_date?: string;
 }
+
+// ---- MoviePilot ----
+
+export interface MoviePilotStatus {
+  configured: boolean;
+  reachable: boolean;
+}
+
+export interface SubscribeInput {
+  tmdb_id: number;
+  media_type: MediaType;
+  title: string;
+  year?: number;
+  season?: number;
+}
+
+export interface SubscribeResult {
+  ok: boolean;
+  message?: string;
+}

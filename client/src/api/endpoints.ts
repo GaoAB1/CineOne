@@ -13,7 +13,10 @@ import type {
   HomeSection,
   MediaItem,
   MediaType,
+  MoviePilotStatus,
   RatingSource,
+  SubscribeInput,
+  SubscribeResult,
   UpcomingItem,
   UserPublic,
   WatchItem,
@@ -178,4 +181,21 @@ export function createUpcoming(input: CreateUpcomingInput): Promise<UpcomingItem
 
 export function deleteUpcoming(id: number): Promise<null> {
   return request(`/upcoming/${id}`, { method: 'DELETE' });
+}
+
+// ---- moviepilot ----
+
+export function fetchMoviepilotStatus(): Promise<MoviePilotStatus> {
+  return request('/moviepilot/status');
+}
+
+export function fetchMoviepilotSubscribed(
+  tmdbId: number,
+  mediaType: MediaType,
+): Promise<{ subscribed: boolean }> {
+  return request(`/moviepilot/subscribed/${tmdbId}/${mediaType}`);
+}
+
+export function subscribeMoviepilot(input: SubscribeInput): Promise<SubscribeResult> {
+  return request('/moviepilot/subscribe', { method: 'POST', body: input });
 }

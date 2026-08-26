@@ -3,9 +3,9 @@
  * radiusClass：允许调用方覆盖圆角（如 TabBar 传 rounded-pill）。
  */
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react';
 
-interface GlassPanelProps {
+type GlassPanelProps = ComponentPropsWithoutRef<'div'> & {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
@@ -13,7 +13,7 @@ interface GlassPanelProps {
   bordered?: boolean;
   /** 圆角类名，默认 rounded-lg（24px） */
   radiusClass?: string;
-}
+};
 
 export default function GlassPanel({
   children,
@@ -21,9 +21,11 @@ export default function GlassPanel({
   style,
   bordered = true,
   radiusClass = 'rounded-lg',
+  ...rest
 }: GlassPanelProps) {
   return (
     <div
+      {...rest}
       className={`glass ${radiusClass} ${bordered ? 'border border-line' : ''} ${className}`}
       style={style}
     >
