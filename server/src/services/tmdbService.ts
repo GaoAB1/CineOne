@@ -17,6 +17,38 @@ import type {
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const REQUEST_TIMEOUT_MS = 8000;
+/** external_ids 属评分链路的旁路请求，超时更短以便快速降级 */
+const EXTERNAL_IDS_TIMEOUT_MS = 6000;
+
+interface ExternalIdsResponse {
+  imdb_id?: string | null;
+}
+
+/**
+ * 获取 TMDB 条目的外部 ID（当前仅消费 imdb_id），供评分链路做 OMDb 映射。
+ * 与主链路不同：本函数用于旁路补数据，任何失败（未配 Key / HTTP 非 2xx /
+ * 网络错误或超时 / 无 imdb_id）一律返回 null，由调用方整体降级，绝不抛出。
+ */
+export async function fetchExternalIds(
+  tmdbId: number,
+  mediaType: MediaType,
+): Promise<string | null> {
+  if (!hasTmdbApiKey()) return null;
+  const url = new URL(`${TMDB_BASE}/${mediaType}/${tmdbId}/external_ids`);
+  url.searchParams.set('api_key', getSetting('tmdb_api_key').trim());
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(EXTERNAL_IDS_TIMEOUT_MS),
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as ExternalIdsResponse;
+    const imdb = typeof body.imdb_id === 'string' ? body.imdb_id.trim() : '';
+    return imdb.length > 0 ? imdb : null;
+  } catch {
+    return null;
+  }
+}
 
 /** 图片 URL 拼接（浏览器直连 CDN，不经后端代理） */
 export function tmdbImage(path: string | null | undefined, size: string): string | undefined {

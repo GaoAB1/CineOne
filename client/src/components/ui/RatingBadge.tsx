@@ -55,15 +55,23 @@ export default function RatingBadge({ source, data, tmdbScore, onClick }: Rating
   const score = data?.score ?? null;
   const stale = data?.stale ?? false;
   const manual = data?.manual ?? false;
-  const clickable = typeof onClick === 'function';
-  const Tag = (clickable ? 'button' : 'span') as 'button';
+  // 外链优先：有 sourceUrl 且有分值时整颗胶囊渲染为 <a>（忽略 onClick，以实现最简为准）
+  const href = data?.sourceUrl && score != null ? data.sourceUrl : null;
+  const clickable = href == null && typeof onClick === 'function';
+  const Tag = (href != null ? 'a' : clickable ? 'button' : 'span') as 'a';
 
   return (
     <Tag
-      {...(clickable ? { type: 'button' as const, onClick } : {})}
+      {...(href != null
+        ? { href, target: '_blank' as const, rel: 'noreferrer' }
+        : clickable
+          ? { type: 'button' as const, onClick }
+          : {})}
       title={manual ? '人工修正值' : stale ? '来自缓存或降级数据' : undefined}
       className={`inline-flex h-7 items-center gap-1.5 rounded-pill border border-line bg-card px-3 text-[13px] ${
-        clickable ? 'cursor-pointer hover:opacity-80 transition-opacity duration-fast ease-out' : ''
+        href != null || clickable
+          ? 'cursor-pointer hover:opacity-80 transition-opacity duration-fast ease-out'
+          : ''
       }`}
     >
       <i className={`${meta.icon}`} style={{ color: 'var(--text-secondary)' }} aria-hidden />
@@ -75,6 +83,13 @@ export default function RatingBadge({ source, data, tmdbScore, onClick }: Rating
         <span className="rounded-pill px-1 text-[10px]" style={{ background: 'var(--color-bg-secondary)', color: 'var(--text-tertiary)' }}>
           缓存
         </span>
+      )}
+      {href != null && (
+        <i
+          className="ri-external-link-line text-[11px]"
+          aria-hidden
+          style={{ color: 'var(--text-tertiary)' }}
+        />
       )}
     </Tag>
   );

@@ -28,7 +28,10 @@ describe('settingsService', () => {
     assert.equal(getSetting('ratings_ttl_hours'), '72');
     assert.equal(getSetting('theme_default'), 'dark');
     assert.equal(getSetting('tmdb_api_key'), '');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 3);
+    // M4 新增评分回源键：默认均为空串（未配置 → 降级为 null）
+    assert.equal(getSetting('omdb_api_key'), '');
+    assert.equal(getSetting('douban_api_base'), '');
+    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 5);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {

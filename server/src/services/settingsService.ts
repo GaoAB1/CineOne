@@ -1,6 +1,7 @@
 /**
  * settings 表读写封装。
- * 已知键白名单：tmdb_api_key / ratings_ttl_hours / theme_default
+ * 已知键白名单：tmdb_api_key / omdb_api_key / douban_api_base /
+ * ratings_ttl_hours / theme_default
  */
 
 import { getDb } from '../db/database';
@@ -63,9 +64,16 @@ export function maskApiKey(key: string): string {
 /** 面向 GET /api/settings 的脱敏视图 */
 export function getSettingsView(): Record<string, unknown> {
   const apiKey = getSetting('tmdb_api_key');
+  const omdbKey = getSetting('omdb_api_key');
+  const doubanBase = getSetting('douban_api_base').trim();
   return {
     tmdb_api_key_masked: maskApiKey(apiKey),
     tmdb_api_key_set: apiKey.trim().length > 0,
+    omdb_api_key_masked: maskApiKey(omdbKey),
+    omdb_api_key_set: omdbKey.trim().length > 0,
+    // douban_api_base 非密钥，直接回显明文便于用户核对
+    douban_api_base: doubanBase,
+    douban_api_base_set: doubanBase.length > 0,
     ratings_ttl_hours: Number.parseInt(getSetting('ratings_ttl_hours'), 10) || 72,
     theme_default: getSetting('theme_default') || 'dark',
   };
