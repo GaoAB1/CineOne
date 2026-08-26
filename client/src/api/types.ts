@@ -87,3 +87,36 @@ export interface EmbySyncResult {
 export interface EmbyPlayUrl {
   url: string;
 }
+
+// ---- 日历与想看 ----
+
+export interface CalendarEntry {
+  tmdbId: number;
+  title: string;
+  season: number;
+  episode: number;
+  airDate: string;
+  posterPath?: string | null;
+}
+
+export interface CalendarPayload {
+  items: CalendarEntry[];
+  lastRefresh: string | null;
+}
+
+export interface UpcomingItem {
+  id: number;
+  tmdbId: number;
+  mediaType: MediaType;
+  title: string;
+  posterPath?: string | null;
+  releaseDate?: string | null;
+}
+
+export interface CreateUpcomingInput {
+  tmdb_id: number;
+  media_type: MediaType;
+  title: string;
+  poster_path?: string;
+  release_date?: string;
+}

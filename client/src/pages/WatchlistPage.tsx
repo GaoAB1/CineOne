@@ -9,6 +9,7 @@ import type { WatchItem, WatchStatus } from '../api/types';
 import ProgressBar from '../components/ui/ProgressBar';
 import EpisodeStepper from '../components/media/EpisodeStepper';
 import PosterFallback from '../components/media/PosterFallback';
+import UpcomingCalendar from '../components/watchlist/UpcomingCalendar';
 import Spinner from '../components/ui/Spinner';
 import GlassPanel from '../components/ui/GlassPanel';
 
@@ -44,6 +45,9 @@ export default function WatchlistPage() {
 
   return (
     <div>
+      {/* 播出日历入口卡 */}
+      <UpcomingCalendar />
+
       {/* 状态过滤（P1 分组） */}
       <div className="no-scrollbar mb-5 flex gap-2 overflow-x-auto pb-1">
         {STATUS_GROUPS.map((g) => {

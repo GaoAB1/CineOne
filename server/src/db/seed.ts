@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   emby_user_id: '',
   /** Emby 上次全量/增量同步时间（服务端写入，用户无需手填） */
   emby_last_sync: '',
+  /** 播出日历最近一次成功刷新时间（服务端写入；内存缓存 TTL 1 小时） */
+  calendar_last_sync: '',
   /** 第三方评分缓存 TTL（小时） */
   ratings_ttl_hours: '72',
   /** 默认主题偏好 */

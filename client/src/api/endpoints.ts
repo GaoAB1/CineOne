@@ -4,6 +4,8 @@
 
 import { request } from './http';
 import type {
+  CalendarPayload,
+  CreateUpcomingInput,
   DetailPayload,
   EmbyPlayUrl,
   EmbyStatus,
@@ -12,6 +14,7 @@ import type {
   MediaItem,
   MediaType,
   RatingSource,
+  UpcomingItem,
   UserPublic,
   WatchItem,
   WatchStatus,
@@ -152,4 +155,27 @@ export function triggerEmbySync(): Promise<EmbySyncResult> {
 
 export function fetchEmbyPlayUrl(tmdbId: number, mediaType: MediaType): Promise<EmbyPlayUrl> {
   return request(`/emby/play/${tmdbId}/${mediaType}`);
+}
+
+// ---- calendar / upcoming ----
+
+export function fetchCalendar(): Promise<CalendarPayload> {
+  return request('/calendar');
+}
+
+/** TMDB 即将上映/播出（电影 upcoming + 剧集 on_the_air 合并） */
+export function fetchTmdbUpcoming(): Promise<MediaItem[]> {
+  return request('/tmdb/upcoming');
+}
+
+export function listUpcoming(): Promise<UpcomingItem[]> {
+  return request('/upcoming');
+}
+
+export function createUpcoming(input: CreateUpcomingInput): Promise<UpcomingItem> {
+  return request('/upcoming', { method: 'POST', body: input });
+}
+
+export function deleteUpcoming(id: number): Promise<null> {
+  return request(`/upcoming/${id}`, { method: 'DELETE' });
 }

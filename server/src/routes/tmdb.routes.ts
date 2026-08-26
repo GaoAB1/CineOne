@@ -12,6 +12,7 @@ import {
   getHomeSections,
   searchMulti,
 } from '../services/tmdbService';
+import { fetchUpcoming } from '../services/tmdbUpcoming';
 import { hasTmdbApiKey } from '../services/settingsService';
 import { ApiError } from '../middleware/errorHandler';
 import type { MediaType } from '../types/domain';
@@ -61,6 +62,15 @@ router.get(
       throw new ApiError(1001, '非法的资源 ID', 400);
     }
     ok(res, await getDetail(type as MediaType, id));
+  }),
+);
+
+/** GET /api/tmdb/upcoming?limit=10 —— 即将上映（今天~90 天，升序） */
+router.get(
+  '/upcoming',
+  asyncHandler(async (req, res) => {
+    const limit = Number.parseInt(String(req.query.limit ?? '10'), 10) || 10;
+    ok(res, { items: await fetchUpcoming(Math.min(50, Math.max(1, limit))) });
   }),
 );
 

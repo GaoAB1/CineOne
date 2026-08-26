@@ -70,8 +70,8 @@ interface TmdbListResult {
   media_type?: string;
 }
 
-/** 统一把 TMDB 列表条目映射为 MediaItem */
-function mapMediaItem(raw: TmdbListResult, fallbackType: MediaType): MediaItem {
+/** 统一把 TMDB 列表条目映射为 MediaItem（供 tmdbUpcoming 等模块复用） */
+export function mapMediaItem(raw: TmdbListResult, fallbackType: MediaType): MediaItem {
   const mediaType: MediaType =
     raw.media_type === 'movie' || raw.media_type === 'tv'
       ? raw.media_type
@@ -90,7 +90,8 @@ function mapMediaItem(raw: TmdbListResult, fallbackType: MediaType): MediaItem {
   };
 }
 
-async function tmdbGet<T>(pathName: string, params: Record<string, string>): Promise<T> {
+/** 统一 GET 请求封装（导出供 tmdbUpcoming / calendarService 复用，Key 未配置抛 2001） */
+export async function tmdbGet<T>(pathName: string, params: Record<string, string>): Promise<T> {
   if (!hasTmdbApiKey()) {
     throw new ApiError(2001, 'TMDB API Key 未配置，请先在设置页配置', 428);
   }

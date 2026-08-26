@@ -5,7 +5,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchDetail, listWatchlist, createWatchItem, patchWatchItem, deleteWatchItem, fetchEmbyPlayUrl } from '../api/endpoints';
+import {
+  fetchDetail,
+  listWatchlist,
+  createWatchItem,
+  patchWatchItem,
+  deleteWatchItem,
+  fetchEmbyPlayUrl,
+  listUpcoming,
+  createUpcoming,
+  deleteUpcoming,
+} from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { DetailPayload, MediaType, SeasonSnapshotEntry, WatchStatus } from '../api/types';
 import PosterFallback from '../components/media/PosterFallback';
@@ -52,6 +62,10 @@ export default function DetailPage() {
 
   // Emby 播放跳转（404 / 未配置时为 null，不渲染按钮）
   const [embyPlayUrl, setEmbyPlayUrl] = useState<string | null>(null);
+
+  // 想看（未上映条目）：upcomingId 存在即已加入
+  const [upcomingId, setUpcomingId] = useState<number | null>(null);
+  const [upcomingBusy, setUpcomingBusy] = useState(false);
 
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
@@ -128,6 +142,35 @@ export default function DetailPage() {
     };
   }, [mediaType, tmdbId]);
 
+  // ---- 想看状态加载（未上映条目） ----
+  useEffect(() => {
+    if (!mediaType || !Number.isInteger(tmdbId)) return;
+    let cancelled = false;
+    setUpcomingId(null);
+    listUpcoming()
+      .then((list) => {
+        if (cancelled) return;
+        const found = list.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType);
+        setUpcomingId(found?.id ?? null);
+      })
+      .catch(() => {
+        // 静默：想看模块失败不影响详情展示
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaType, tmdbId]);
+
+  // 未上映/播出（release_date 在未来）→ 以「想看」替代追剧入口
+  const isUnreleased = useMemo(() => {
+    if (!detail?.releaseDate) return false;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate(),
+    ).padStart(2, '0')}`;
+    return detail.releaseDate.slice(0, 10) > todayStr;
+  }, [detail]);
+
   const backdropUrl = useMemo(() => {
     if (!detail?.backdropPath) return undefined;
     return `https://image.tmdb.org/t/p/w1280${detail.backdropPath}`;
@@ -191,6 +234,46 @@ export default function DetailPage() {
       setWatchMsg('移除失败');
     } finally {
       setWatchBusy(false);
+    }
+  };
+
+  // ---- 想看动作（未上映条目） ----
+  const addToUpcoming = async (): Promise<void> => {
+    if (!mediaType || !detail) return;
+    setUpcomingBusy(true);
+    try {
+      const created = await createUpcoming({
+        tmdb_id: tmdbId,
+        media_type: mediaType,
+        title: detail.title,
+        poster_path: detail.posterPath,
+        release_date: detail.releaseDate,
+      });
+      setUpcomingId(created.id);
+    } catch {
+      // 4090 视为重复加入，同样收敛为已加入态
+      try {
+        const list = await listUpcoming();
+        const found = list.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType);
+        if (found) setUpcomingId(found.id);
+      } catch {
+        // 静默：保持当前态即可
+      }
+    } finally {
+      setUpcomingBusy(false);
+    }
+  };
+
+  const removeFromUpcoming = async (): Promise<void> => {
+    if (upcomingId == null) return;
+    setUpcomingBusy(true);
+    try {
+      await deleteUpcoming(upcomingId);
+      setUpcomingId(null);
+    } catch {
+      // 静默：失败时保留已加入态，下次可重试取消
+    } finally {
+      setUpcomingBusy(false);
     }
   };
 
@@ -333,11 +416,38 @@ export default function DetailPage() {
         )}
         {!watchEntry ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="filled" loading={watchBusy} onClick={() => void addToWatchlist()}>
-              <i className="ri-add-line" aria-hidden /> 加入追剧
-            </Button>
-            {mediaType === 'movie' && (
+            {isUnreleased ? (
+              upcomingId == null ? (
+                <Button
+                  variant="tinted"
+                  loading={upcomingBusy}
+                  icon={<i className="ri-bookmark-line" aria-hidden />}
+                  onClick={() => void addToUpcoming()}
+                >
+                  想看
+                </Button>
+              ) : (
+                <Button
+                  variant="gray"
+                  loading={upcomingBusy}
+                  icon={<i className="ri-bookmark-fill" aria-hidden />}
+                  onClick={() => void removeFromUpcoming()}
+                >
+                  已加入想看 · 点击取消
+                </Button>
+              )
+            ) : (
+              <Button variant="filled" loading={watchBusy} onClick={() => void addToWatchlist()}>
+                <i className="ri-add-line" aria-hidden /> 加入追剧
+              </Button>
+            )}
+            {mediaType === 'movie' && !isUnreleased && (
               <span className="type-caption text-txt-tertiary">电影加入后会出现在追剧列表中便于标记已看。</span>
+            )}
+            {isUnreleased && (
+              <span className="type-caption text-txt-tertiary">
+                {detail.releaseDate ? `将于 ${detail.releaseDate.slice(0, 10)} 上映/播出` : '尚未上映/播出'}，先加入想看。
+              </span>
             )}
           </div>
         ) : (

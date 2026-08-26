@@ -66,6 +66,19 @@ const DDL_STATEMENTS: string[] = [
     UNIQUE (item_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_emby_tmdb ON emby_items(tmdb_id, media_type)`,
+  // ---- M3 追剧日历与想看 ----
+  `CREATE TABLE IF NOT EXISTS upcoming (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tmdb_id      INTEGER NOT NULL,
+    media_type   TEXT    NOT NULL CHECK (media_type IN ('movie','tv')),
+    title        TEXT    NOT NULL,
+    poster_path  TEXT,
+    release_date TEXT,
+    note         TEXT,
+    added_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (user_id, tmdb_id, media_type)
+  )`,
 ];
 
 export function runMigrate(): void {

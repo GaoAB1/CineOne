@@ -4,9 +4,9 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchHome, fetchTmdbStatus } from '../api/endpoints';
+import { fetchHome, fetchTmdbStatus, fetchTmdbUpcoming } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
-import type { HomeSection } from '../api/types';
+import type { HomeSection, MediaItem } from '../api/types';
 import MediaRow from '../components/media/MediaRow';
 import Hero from '../components/media/Hero';
 import GlassPanel from '../components/ui/GlassPanel';
@@ -38,6 +38,7 @@ function HomeSkeleton() {
 export default function HomePage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [sections, setSections] = useState<HomeSection[]>([]);
+  const [upcoming, setUpcoming] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +64,21 @@ export default function HomePage() {
         if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 「即将上映」行：静默加载，失败不影响主分区
+  useEffect(() => {
+    let cancelled = false;
+    fetchTmdbUpcoming()
+      .then((items) => {
+        if (!cancelled && Array.isArray(items)) setUpcoming(items);
+      })
+      .catch(() => {
+        // 静默：即将上映加载失败时跳过该行
+      });
     return () => {
       cancelled = true;
     };
@@ -112,6 +128,7 @@ export default function HomePage() {
   return (
     <div>
       {heroItem && <Hero item={heroItem} />}
+      {upcoming.length > 0 && <MediaRow title="即将上映" items={upcoming} />}
       {sections.map((section) => (
         <MediaRow key={section.key} title={section.title} items={section.items} />
       ))}

@@ -36,7 +36,9 @@ describe('settingsService', () => {
     assert.equal(getSetting('emby_api_key'), '');
     assert.equal(getSetting('emby_user_id'), '');
     assert.equal(getSetting('emby_last_sync'), '');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 9);
+    // M3 新增日历键：服务端写入的最近刷新时间
+    assert.equal(getSetting('calendar_last_sync'), '');
+    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 10);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {
