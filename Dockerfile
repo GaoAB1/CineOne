@@ -29,6 +29,7 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
+    DB_DIR=/app/data \
     DB_PATH=/app/data/cineone.db
 
 # 仅复制运行所需产物
