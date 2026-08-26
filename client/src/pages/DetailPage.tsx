@@ -210,41 +210,65 @@ export default function DetailPage() {
 
   return (
     <div className="pb-6">
-      {/* 背景横幅 */}
+      {/* 头图区（Hero 化：<md 4/3 / ≥md 21/9 + 双层遮罩） */}
       <div
-        className="relative mb-6 overflow-hidden"
-        style={{ borderRadius: 'var(--radius-lg)', minHeight: 200 }}
+        className="relative mb-6 aspect-[4/3] overflow-hidden shadow-md md:aspect-[21/9]"
+        style={{ borderRadius: 'var(--radius-lg)' }}
       >
         {backdropUrl ? (
           <img src={backdropUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0" style={{ background: 'var(--color-bg-secondary)' }} />
         )}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to top, var(--color-bg-primary), transparent)' }}
-        />
+        {/* 压暗层 */}
+        <div className="absolute inset-0" style={{ background: 'var(--scrim-hero-dim)' }} aria-hidden />
+        {/* 底部渐变遮罩 */}
+        <div className="absolute inset-x-0 bottom-0 h-[70%]" style={{ background: 'var(--scrim-hero)' }} aria-hidden />
+
         <div className="relative flex items-end gap-5 p-5 md:p-8">
           {posterUrl ? (
             <img
               src={posterUrl}
               alt={`${detail.title} 海报`}
-              className="hidden w-[160px] shadow-md sm:block"
-              style={{ borderRadius: 'var(--radius-card)', aspectRatio: '2 / 3', objectFit: 'cover' }}
+              className="hidden w-[120px] shadow-lg sm:block md:w-[160px]"
+              style={{
+                borderRadius: 'var(--radius-card)',
+                aspectRatio: '2 / 3',
+                objectFit: 'cover',
+                background: 'var(--color-bg-secondary)',
+              }}
             />
           ) : (
-            <div className="hidden w-[160px] sm:block">
+            <div className="hidden w-[120px] sm:block md:w-[160px]">
               <PosterFallback />
             </div>
           )}
           <div className="min-w-0 pb-1">
-            <h1 className="type-large-title leading-tight">{detail.title}</h1>
-            <p className="type-caption mt-2 flex flex-wrap items-center gap-2 text-txt-secondary">
+            <h1
+              className="type-large-title leading-tight text-white"
+              style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.35)' }}
+            >
+              {detail.title}
+            </h1>
+            <p
+              className="mt-2 flex flex-wrap items-center gap-2 text-[13px]"
+              style={{ color: 'color-mix(in srgb, #FFFFFF 80%, transparent)' }}
+            >
               <span>{year}</span>
               {runtimeText && <span aria-hidden>·</span>}
               {runtimeText && <span>{runtimeText}</span>}
               {detail.genres.slice(0, 4).map((g) => (
-                <span key={g.id} className="rounded-pill px-2 py-0.5" style={{ background: 'var(--nav-bg)', border: '1px solid var(--border-light)' }}>
+                <span
+                  key={g.id}
+                  className="rounded-pill px-2 py-0.5 text-[11px]"
+                  style={{
+                    background: 'var(--overlay-capsule-bg)',
+                    border: '1px solid var(--overlay-capsule-border)',
+                    color: 'var(--overlay-capsule-text)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                  }}
+                >
                   {g.name}
                 </span>
               ))}
@@ -337,7 +361,7 @@ export default function DetailPage() {
           <h2 className="type-headline mb-3">演职员</h2>
           <div className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
             {detail.cast.map((person, idx) => (
-              <div key={`${person.name}-${idx}`} className="w-[96px] shrink-0 text-center">
+              <div key={`${person.name}-${idx}`} className="w-[96px] shrink-0 text-center transition-transform duration-fast ease-out hover:-translate-y-0.5">
                 {person.profilePath ? (
                   <img
                     src={`https://image.tmdb.org/t/p/w185${person.profilePath}`}

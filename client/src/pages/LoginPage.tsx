@@ -32,8 +32,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-app p-4">
-      <GlassPanel className="w-full max-w-[400px] border-line p-8 md:p-10 shadow-md" bordered>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-app p-4">
+      {/* 影院灯光氛围：低透明度模糊光斑（纯装饰） */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-24 -top-24 h-[360px] w-[360px] rounded-full"
+        style={{
+          background: 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
+          filter: 'blur(80px)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-28 -right-20 h-[320px] w-[320px] rounded-full"
+        style={{
+          background: 'color-mix(in srgb, var(--color-success) 8%, transparent)',
+          filter: 'blur(80px)',
+        }}
+      />
+      <GlassPanel className="relative w-full max-w-[400px] border-line p-8 shadow-lg md:p-10" bordered>
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <i className="ri-film-fill text-[40px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
           <h1 className="type-title">CineOne</h1>

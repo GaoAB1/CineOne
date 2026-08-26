@@ -1,5 +1,5 @@
 /**
- * 窄屏底部 Tab 栏（fill 图标，毛玻璃，安全区适配）。
+ * 窄屏底部 Tab 栏（Forward 悬浮胶囊 Dock：毛玻璃 + pill 外形 + 安全区适配）。
  */
 
 import { NavLink } from 'react-router-dom';
@@ -15,22 +15,28 @@ const TAB_ITEMS = [
 export default function TabBar() {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <GlassPanel className="mx-3 mb-3 flex items-stretch justify-around p-1" bordered>
+      <GlassPanel
+        radiusClass="rounded-pill"
+        className="mx-4 mb-4 flex items-stretch justify-around p-[6px] shadow-md"
+        bordered
+      >
         {TAB_ITEMS.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 rounded-sm py-1.5 transition-colors duration-fast ease-out ${
+              `flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-pill py-2 transition-colors duration-fast ease-out ${
                 isActive ? '' : 'text-txt-secondary'
               }`
             }
-            style={({ isActive }) => (isActive ? { color: 'var(--color-accent)' } : undefined)}
+            style={({ isActive }) =>
+              isActive ? { color: 'var(--color-accent)', background: 'var(--surface-warm)' } : undefined
+            }
           >
             {({ isActive }) => (
               <>
-                <i className={`${isActive ? item.iconFill : item.iconLine} text-[22px]`} aria-hidden />
+                <i className={`${isActive ? item.iconFill : item.iconLine} text-[24px]`} aria-hidden />
                 <span className="text-[10px] leading-none">{item.label}</span>
               </>
             )}

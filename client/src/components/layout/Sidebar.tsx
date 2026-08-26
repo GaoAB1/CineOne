@@ -34,12 +34,16 @@ export default function Sidebar({ username, onLogout }: SidebarProps) {
               end={item.to === '/'}
               className={({ isActive }) =>
                 `press-spring flex min-h-[44px] items-center gap-3 rounded-sm px-3 text-body transition-colors duration-fast ease-out ${
-                  isActive ? 'font-semibold' : 'text-txt-secondary hover:text-txt-primary'
+                  isActive ? 'font-semibold' : 'text-txt-secondary hover:bg-warm hover:text-txt-primary'
                 }`
               }
               style={({ isActive }) =>
                 isActive
-                  ? { background: 'var(--nav-bg)', color: 'var(--color-accent)', borderRadius: 'var(--radius-sm)' }
+                  ? {
+                      background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
+                      color: 'var(--color-accent)',
+                      borderRadius: 'var(--radius-sm)',
+                    }
                   : undefined
               }
             >

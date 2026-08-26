@@ -19,16 +19,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 function variantClasses(variant: ButtonVariant): string {
   switch (variant) {
     case 'filled':
-      return 'bg-accent text-white hover:opacity-90';
+      // Forward：hover 用亮度变化（color-mix 压暗）而非 opacity
+      return 'bg-accent text-white hover:bg-[color:color-mix(in_srgb,var(--color-accent)_88%,_black)]';
     case 'tinted':
       // iOS tinted：accent 低透明度底 + accent 文字
-      return 'bg-[color:var(--nav-bg)] text-accent hover:opacity-90 border border-line';
+      return 'bg-[color:var(--nav-bg)] text-accent hover:bg-[color:var(--surface-warm)] border border-line';
     case 'gray':
-      return 'bg-surface text-txt-primary hover:opacity-90';
+      return 'bg-surface text-txt-primary hover:bg-[color:color-mix(in_srgb,var(--color-bg-secondary)_88%,_var(--text-secondary))]';
     case 'plain':
       return 'bg-transparent text-accent hover:opacity-70';
     case 'destructive':
-      return 'bg-danger text-white hover:opacity-90';
+      return 'bg-danger text-white hover:bg-[color:color-mix(in_srgb,var(--color-danger)_88%,_black)]';
     default:
       return '';
   }
@@ -48,7 +49,7 @@ export default function Button({
     <button
       {...rest}
       disabled={disabled || loading}
-      className={`press-spring inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md px-5 text-[17px] font-medium transition-opacity duration-fast ease-out disabled:cursor-not-allowed disabled:opacity-50 ${variantClasses(
+      className={`press-spring inline-flex min-h-[44px] items-center justify-center gap-2 rounded-sm px-5 text-[17px] font-medium transition-[background-color,opacity] duration-fast ease-out disabled:cursor-not-allowed disabled:opacity-50 ${variantClasses(
         variant,
       )} ${block ? 'w-full' : ''} ${className}`}
     >

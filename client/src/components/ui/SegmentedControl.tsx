@@ -26,7 +26,7 @@ export default function SegmentedControl<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="inline-flex rounded-sm bg-surface p-1"
+      className="inline-flex rounded-sm bg-warm p-1"
       style={{ borderRadius: 'var(--radius-sm)' }}
     >
       {options.map((opt) => {
@@ -43,7 +43,7 @@ export default function SegmentedControl<T extends string>({
             style={
               active
                 ? {
-                    background: 'var(--color-bg-card)',
+                    background: 'var(--color-bg-elevated)',
                     color: 'var(--text-primary)',
                     boxShadow: 'var(--shadow-sm)',
                     borderRadius: 'calc(var(--radius-sm) - 4px)',

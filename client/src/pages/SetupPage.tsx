@@ -8,7 +8,6 @@ import { useAuth } from '../stores/AuthContext';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 import GlassPanel from '../components/ui/GlassPanel';
-import PosterFallback from '../components/media/PosterFallback';
 
 export default function SetupPage() {
   const { setup } = useAuth();
@@ -48,7 +47,27 @@ export default function SetupPage() {
             <i className="ri-film-fill text-[28px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
             <span className="type-title">CineOne</span>
           </div>
-          <PosterFallback />
+          {/* 海报墙拼贴装饰（纯装饰，aria-hidden） */}
+          <div className="flex items-end gap-4" aria-hidden>
+            <div
+              className="w-[76px] shadow-sm"
+              style={{ aspectRatio: '2 / 3', borderRadius: 'var(--radius-card)', background: 'var(--color-bg-card)' }}
+            />
+            <div
+              className="w-[100px] shadow-md"
+              style={{
+                aspectRatio: '2 / 3',
+                borderRadius: 'var(--radius-card)',
+                background:
+                  'linear-gradient(var(--surface-warm), var(--surface-warm)), var(--color-bg-card)',
+                marginBottom: '24px',
+              }}
+            />
+            <div
+              className="w-[76px] shadow-sm"
+              style={{ aspectRatio: '2 / 3', borderRadius: 'var(--radius-card)', background: 'var(--color-bg-card)' }}
+            />
+          </div>
           <p className="type-caption text-txt-secondary">首次使用 · 创建管理员账号以保护你的私人影视库</p>
         </div>
 

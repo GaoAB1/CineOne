@@ -17,7 +17,16 @@ export default function TopBar({ title, username, onLogout }: TopBarProps) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // 滚动超过 80px 后加底部描边（内容从顶栏下穿过时更有层次）
+  useEffect(() => {
+    const onScroll = (): void => setScrolled(window.scrollY > 80);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -32,7 +41,11 @@ export default function TopBar({ title, username, onLogout }: TopBarProps) {
 
   return (
     <header className="sticky top-0 z-30 px-3 pt-3">
-      <GlassPanel className="flex min-h-[56px] items-center gap-2 px-4 py-2" bordered>
+      <GlassPanel
+        className="flex min-h-[56px] items-center gap-2 px-4 py-2 transition-colors duration-fast ease-out"
+        style={{ borderBottom: scrolled ? '1px solid var(--border-light)' : '1px solid transparent' }}
+        bordered={false}
+      >
         <h1 className="type-title mr-auto truncate">{title}</h1>
 
         <button

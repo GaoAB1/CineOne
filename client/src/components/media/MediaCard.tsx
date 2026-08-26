@@ -1,14 +1,17 @@
 /**
- * 海报卡片：悬浮微缩放 + 标题年份。
- * 图片规则：w342 列表海报；无 posterPath 渲染 PosterFallback。
+ * 海报卡片（Forward 重塑版）：18px 圆角海报 + 左下角毛玻璃评分胶囊
+ * + 标题年份两行。宽度：< md 128px / md–lg 148px / 网格模式自适应。
  */
 
 import { Link } from 'react-router-dom';
 import type { MediaItem } from '../../api/types';
 import PosterFallback from './PosterFallback';
+import RatingCapsule from './RatingCapsule';
 
 interface MediaCardProps {
   item: MediaItem;
+  /** 网格模式（搜索页结果网格等）：宽度交给父级格子撑满 */
+  fill?: boolean;
 }
 
 function yearOf(item: MediaItem): string {
@@ -16,44 +19,43 @@ function yearOf(item: MediaItem): string {
   return item.releaseDate.slice(0, 4);
 }
 
-export default function MediaCard({ item }: MediaCardProps) {
+export default function MediaCard({ item, fill = false }: MediaCardProps) {
   const href = `/detail/${item.mediaType}/${item.tmdbId}`;
   const posterUrl = item.posterPath
     ? `https://image.tmdb.org/t/p/w342${item.posterPath}`
     : undefined;
 
   return (
-    <Link to={href} className="group block w-[150px] shrink-0 focus:outline-none">
+    <Link
+      to={href}
+      className={`group block rounded-card focus:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+        fill ? 'w-full' : 'w-[128px] shrink-0 snap-start md:w-[148px] lg:w-full'
+      }`}
+    >
       <div
-        className="hover-lift overflow-hidden shadow-sm"
-        style={{ borderRadius: 'var(--radius-card)', aspectRatio: '2 / 3', background: 'var(--color-bg-secondary)' }}
+        className="hover-lift relative overflow-hidden shadow-sm"
+        style={{
+          borderRadius: 'var(--radius-card)',
+          aspectRatio: '2 / 3',
+          background: 'var(--color-bg-secondary)',
+        }}
       >
         {posterUrl ? (
           <img
             src={posterUrl}
             alt={`${item.title} 海报`}
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-fast ease-out group-hover:scale-[1.03]"
+            className="h-full w-full object-cover transition-transform duration-base ease-out group-hover:scale-105"
           />
         ) : (
           <PosterFallback title={item.title} />
         )}
+        <RatingCapsule score={item.voteAverage} />
       </div>
       <p className="mt-2 truncate text-[14px] font-medium text-txt-primary" title={item.title}>
         {item.title}
       </p>
-      <p className="type-caption mt-0.5 flex items-center gap-1.5 text-txt-secondary">
-        <span>{yearOf(item)}</span>
-        {item.voteAverage != null && item.voteAverage > 0 && (
-          <>
-            <span aria-hidden>·</span>
-            <span className="inline-flex items-center gap-0.5">
-              <i className="ri-star-fill text-[11px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
-              {item.voteAverage.toFixed(1)}
-            </span>
-          </>
-        )}
-      </p>
+      <p className="type-caption mt-0.5 text-txt-secondary">{yearOf(item)}</p>
     </Link>
   );
 }

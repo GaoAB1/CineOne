@@ -19,7 +19,7 @@ export default function Switch({ checked, onChange, label, disabled = false }: S
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className="relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-pill transition-colors duration-fast ease-out disabled:opacity-50"
-      style={{ background: checked ? 'var(--color-success)' : 'var(--text-tertiary)' }}
+      style={{ background: checked ? 'var(--color-accent)' : 'var(--text-tertiary)' }}
     >
       <span
         className="absolute h-[27px] w-[27px] rounded-full bg-white shadow-sm transition-all duration-fast ease-out"

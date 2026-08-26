@@ -1,5 +1,5 @@
 /**
- * 主页：四大分区横向卡片流 + 未配置 Key 引导页分支。
+ * 主页：Hero 精选区（每周热门第 1 项）+ 四大分区卡片流 + 骨架屏加载态。
  */
 
 import { useEffect, useState } from 'react';
@@ -8,9 +8,32 @@ import { fetchHome, fetchTmdbStatus } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { HomeSection } from '../api/types';
 import MediaRow from '../components/media/MediaRow';
-import Spinner from '../components/ui/Spinner';
+import Hero from '../components/media/Hero';
 import GlassPanel from '../components/ui/GlassPanel';
 import Button from '../components/ui/Button';
+
+/** 加载骨架：Hero 块 + 分区标题条 + 6 张海报骨架，全部 shimmer */
+function HomeSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="正在加载首页内容">
+      <div className="skeleton-shimmer mb-6" style={{ borderRadius: 'var(--radius-lg)', aspectRatio: '21 / 9' }} />
+      {[0, 1].map((row) => (
+        <div key={row} className="mb-6">
+          <div className="skeleton-shimmer mb-3 h-4 w-[120px]" style={{ borderRadius: 'var(--radius-sm)' }} />
+          <div className="flex gap-3 overflow-hidden">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="skeleton-shimmer w-[128px] shrink-0"
+                style={{ borderRadius: 'var(--radius-card)', aspectRatio: '2 / 3' }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -81,12 +104,14 @@ export default function HomePage() {
     );
   }
 
-  if (loading) {
-    return <Spinner label="正在为你准备今日片单" />;
-  }
+  if (loading) return <HomeSkeleton />;
+
+  // Hero 数据源：第一个分区的第 1 个条目（有 backdropPath 才渲染）
+  const heroItem = sections[0]?.items[0];
 
   return (
     <div>
+      {heroItem && <Hero item={heroItem} />}
       {sections.map((section) => (
         <MediaRow key={section.key} title={section.title} items={section.items} />
       ))}

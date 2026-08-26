@@ -41,7 +41,7 @@ export default function RatingBadge({ source, data, tmdbScore, onClick }: Rating
     const value = tmdbScore != null ? tmdbScore.toFixed(1) : '暂无';
     return (
       <span
-        className="inline-flex items-center gap-1 rounded-pill border border-line px-3 py-1 text-[13px]"
+        className="inline-flex h-7 items-center gap-1 rounded-pill border border-line bg-card px-3 text-[13px]"
         style={{ color: semanticColor(tmdbScore ?? null) }}
       >
         <i className="ri-star-fill" aria-hidden />
@@ -62,7 +62,7 @@ export default function RatingBadge({ source, data, tmdbScore, onClick }: Rating
     <Tag
       {...(clickable ? { type: 'button' as const, onClick } : {})}
       title={manual ? '人工修正值' : stale ? '来自缓存或降级数据' : undefined}
-      className={`inline-flex items-center gap-1.5 rounded-pill border border-line bg-card px-3 py-1 text-[13px] ${
+      className={`inline-flex h-7 items-center gap-1.5 rounded-pill border border-line bg-card px-3 text-[13px] ${
         clickable ? 'cursor-pointer hover:opacity-80 transition-opacity duration-fast ease-out' : ''
       }`}
     >

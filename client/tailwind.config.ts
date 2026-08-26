@@ -19,7 +19,10 @@ export default {
           tertiary: 'var(--text-tertiary)',
         },
         line: 'var(--border-light)',
+        lineStrong: 'var(--border-strong)',
         navbg: 'var(--nav-bg)',
+        elevated: 'var(--color-bg-elevated)',
+        warm: 'var(--surface-warm)',
       },
       fontFamily: {
         sans: ['var(--font-system)'],
@@ -34,10 +37,12 @@ export default {
       boxShadow: {
         sm: 'var(--shadow-sm)',
         md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
       },
       transitionDuration: {
         fast: 'var(--duration-fast)',
         base: 'var(--duration-base)',
+        slow: 'var(--duration-slow)',
       },
       transitionTimingFunction: {
         out: 'var(--ease-out)',

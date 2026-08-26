@@ -57,8 +57,16 @@ export default function WatchlistPage() {
               className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
               style={
                 active
-                  ? { background: 'var(--color-accent)', color: '#FFFFFF' }
-                  : { background: 'var(--color-bg-secondary)', color: 'var(--text-secondary)' }
+                  ? {
+                      background: 'var(--surface-warm)',
+                      color: 'var(--color-accent)',
+                      border: '1px solid var(--color-accent)',
+                    }
+                  : {
+                      background: 'var(--color-bg-secondary)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid transparent',
+                    }
               }
             >
               {g.label}

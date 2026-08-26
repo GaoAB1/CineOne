@@ -17,8 +17,8 @@ export default function ProgressBar({ percent, className = '', showLabel = true 
         aria-valuenow={clamped}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-1.5 flex-1 overflow-hidden"
-        style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-pill)' }}
+        className="h-[6px] flex-1 overflow-hidden"
+        style={{ background: 'var(--surface-warm)', borderRadius: 'var(--radius-pill)' }}
       >
         <div
           className="h-full transition-all duration-base ease-out"

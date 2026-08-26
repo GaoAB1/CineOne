@@ -41,7 +41,8 @@ export default function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-6">
         <TopBar title={resolveTitle(location.pathname)} username={user?.username ?? ''} onLogout={handleLogout} />
         <main
-          className="mx-auto w-full max-w-[1200px] flex-1 px-0 pt-4"
+          key={location.pathname}
+          className="page-fade mx-auto w-full max-w-[1200px] flex-1 px-0 pt-4"
           style={{ paddingLeft: 'var(--margin-page)', paddingRight: 'var(--margin-page)' }}
         >
           <Outlet />

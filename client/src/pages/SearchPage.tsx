@@ -70,8 +70,8 @@ export default function SearchPage() {
             placeholder="搜索电影 / 剧集…"
             autoFocus
             aria-label="全局搜索"
-            className="h-11 w-full border border-line bg-card pl-11 pr-4 text-body text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent"
-            style={{ borderRadius: 'var(--radius-md)' }}
+            className="h-11 w-full rounded-pill border border-line bg-card pl-11 pr-4 text-body text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent focus:shadow-[var(--focus-ring)]"
+            style={{ borderRadius: 'var(--radius-pill)' }}
           />
         </div>
         <SegmentedControl<TypeFilter>
@@ -96,9 +96,9 @@ export default function SearchPage() {
         <p className="type-body py-12 text-center text-txt-tertiary">没有找到与「{keyword}」相关的内容</p>
       )}
       {!loading && shown.length > 0 && (
-        <div className="grid grid-cols-2 justify-items-center gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-3 justify-items-center gap-x-4 gap-y-6 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {shown.map((item) => (
-            <MediaCard key={`${item.mediaType}-${item.tmdbId}`} item={item} />
+            <MediaCard key={`${item.mediaType}-${item.tmdbId}`} item={item} fill />
           ))}
         </div>
       )}

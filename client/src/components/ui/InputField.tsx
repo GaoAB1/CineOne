@@ -1,5 +1,6 @@
 /**
  * 44pt 高度 iOS 风格输入框。
+ * Forward 版：label 去 uppercase；focus 边框 accent + 焦点环双反馈。
  */
 
 import { useId, type InputHTMLAttributes } from 'react';
@@ -14,13 +15,13 @@ export default function InputField({ label, error, hint, className = '', ...rest
   const id = useId();
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor={id} className="type-caption uppercase tracking-wide text-txt-secondary">
+      <label htmlFor={id} className="text-[13px] font-medium text-txt-secondary">
         {label}
       </label>
       <input
         id={id}
         {...rest}
-        className={`h-11 w-full rounded-md border bg-card px-4 text-body text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent ${
+        className={`h-11 w-full rounded-md border bg-card px-4 text-body text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent focus:shadow-[var(--focus-ring)] ${
           error ? 'border-danger' : 'border-line'
         }`}
         style={{ borderRadius: 'var(--radius-md)' }}
