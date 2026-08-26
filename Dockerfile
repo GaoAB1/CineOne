@@ -37,8 +37,13 @@ COPY --from=server-build /build/server/dist ./server/dist
 COPY server/package.json ./server/package.json
 COPY --from=client-build /build/client/dist ./client/dist
 
-# 数据目录对 node 用户可写（降权前以 root 完成 chown）
-RUN mkdir -p /app/data && chown -R node:node /app
+# su-exec：入口脚本以 root 修复数据卷属主后降权到 node（兼容旧 root 卷/bind mount）
+RUN apk add --no-cache su-exec \
+    && mkdir -p /app/data \
+    && chown -R node:node /app/data
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/app/data"]
 EXPOSE 3000
@@ -46,7 +51,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/bootstrap || exit 1
 
-# 降权运行（官方镜像内置 node 用户）
-USER node
+# 入口脚本内部完成降权（root 修属主 → su-exec node），进程仍以 node 运行
+ENTRYPOINT ["docker-entrypoint.sh"]
 WORKDIR /app/server
 CMD ["node", "dist/index.js"]
