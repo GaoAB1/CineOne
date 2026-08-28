@@ -73,6 +73,8 @@ async function embyGet<T>(cfg: EmbyConfig, pathName: string): Promise<T> {
 export interface VerifyResult {
   serverId: string | null;
   serverName: string | null;
+  /** 校验并（必要时自动解析）后的用户 ID；解析成功会回写 settings */
+  userId: string | null;
 }
 
 interface SystemInfoResponse {
@@ -80,13 +82,62 @@ interface SystemInfoResponse {
   ServerName?: string;
 }
 
-/** 连接校验：GET /System/Info，200 即有效 */
+interface EmbyUserSummary {
+  Id?: string;
+  Name?: string;
+}
+
+/** 探测某用户 ID 是否有效（GET /Users/{id}，非 2xx 视为无效，不抛错） */
+async function probeUser(cfg: EmbyConfig, userId: string): Promise<boolean> {
+  try {
+    await embyGet<unknown>(cfg, `/Users/${encodeURIComponent(userId)}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 校验 emby_user_id 并尽量自动修正：
+ * 1. 已配置且有效 → 直接用；
+ * 2. 无效 → 拉 /Users 列表：settings 配了 emby_username 则按用户名（忽略大小写）匹配；
+ *    否则列表恰有 1 个用户时采用该用户；都失败抛 3004 引导用户手动填 GUID。
+ * 解析成功会 setSetting('emby_user_id', id) 回填，后续同步直接复用。
+ */
+export async function resolveEmbyUser(cfg?: EmbyConfig): Promise<EmbyConfig> {
+  const target = cfg ?? requireConfig();
+  if (target.userId && (await probeUser(target, target.userId))) return target;
+
+  const users = await embyGet<EmbyUserSummary[]>(target, '/Users');
+  const username = getSetting('emby_username').trim().toLowerCase();
+  let match: EmbyUserSummary | undefined;
+  if (username) {
+    match = users.find(
+      (u) => typeof u.Name === 'string' && u.Name.trim().toLowerCase() === username,
+    );
+  } else if (users.length === 1) {
+    match = users[0];
+  }
+  if (!match || typeof match.Id !== 'string' || match.Id.length === 0) {
+    throw new ApiError(
+      3006,
+      'Emby 用户 ID 无效且无法自动识别：请在 Emby 控制台→用户 页面复制用户 GUID 填入设置；或填写「用户名」后重新测试连接',
+      502,
+    );
+  }
+  setSetting('emby_user_id', match.Id);
+  return { ...target, userId: match.Id };
+}
+
+/** 连接校验：GET /System/Info（200 即有效）+ 用户 ID 校验/自动解析 */
 export async function verifyConnection(cfg?: EmbyConfig): Promise<VerifyResult> {
   const target = cfg ?? requireConfig();
   const info = await embyGet<SystemInfoResponse>(target, '/System/Info');
+  const resolved = await resolveEmbyUser(target);
   return {
     serverId: typeof info.Id === 'string' ? info.Id : null,
     serverName: typeof info.ServerName === 'string' ? info.ServerName : null,
+    userId: resolved.userId,
   };
 }
 
@@ -163,7 +214,24 @@ function incrementalSince(): string | null {
  * 成功后写入 emby_last_sync。串行执行即可，数据量可控。
  */
 export async function syncEmbyLibrary(): Promise<SyncResult> {
-  const cfg = requireConfig();
+  // 先校验/自动解析用户 ID（无效会抛 3004 或自动回填），避免 /Users/{id}/Items 触发 HTTP 500
+  let cfg = requireConfig();
+  try {
+    cfg = await resolveEmbyUser(cfg);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      if (err.httpStatus === 502 && err.message.includes('HTTP 500')) {
+        throw new ApiError(
+          3005,
+          'Emby 同步失败（HTTP 500）：通常是「用户 ID」无效，请点击「测试连接」自动校验修正，或核对用户 GUID',
+          502,
+        );
+      }
+      throw err;
+    }
+    throw new ApiError(3003, 'Emby 同步失败（网络错误或超时）', 502);
+  }
+
   const sinceIso = incrementalSince();
   const extraQuery = sinceIso ? `&MinDateLastSavedForUser=${encodeURIComponent(sinceIso)}` : '';
 
@@ -171,7 +239,17 @@ export async function syncEmbyLibrary(): Promise<SyncResult> {
   try {
     fetched = await fetchAndMap(cfg, extraQuery || undefined);
   } catch (err) {
-    if (err instanceof ApiError) throw err;
+    if (err instanceof ApiError) {
+      // 用户 ID 无效导致的 500 是常见误配，给出可操作提示
+      if (err.message.includes('HTTP 500')) {
+        throw new ApiError(
+          3005,
+          'Emby 同步失败（HTTP 500）：通常是「用户 ID」无效，请点击「测试连接」自动校验修正，或核对用户 GUID',
+          502,
+        );
+      }
+      throw err;
+    }
     throw new ApiError(3003, 'Emby 同步失败（网络错误或超时）', 502);
   }
 

@@ -4,6 +4,7 @@
 
 import { request } from './http';
 import type {
+  AdminUserView,
   CalendarPayload,
   CreateUpcomingInput,
   DetailPayload,
@@ -198,4 +199,34 @@ export function fetchMoviepilotSubscribed(
 
 export function subscribeMoviepilot(input: SubscribeInput): Promise<SubscribeResult> {
   return request('/moviepilot/subscribe', { method: 'POST', body: input });
+}
+
+// ---- users（管理端） ----
+
+export function listUsers(): Promise<{ users: AdminUserView[] }> {
+  return request('/users');
+}
+
+export interface CreateUserInput {
+  username: string;
+  password: string;
+  role?: 'admin' | 'member';
+}
+
+export function createUser(input: CreateUserInput): Promise<{ user: AdminUserView }> {
+  return request('/users', { method: 'POST', body: input });
+}
+
+export interface UpdateUserPasswordInput {
+  /** 管理员重置他人密码时可不传；本人修改须携带 */
+  oldPassword?: string;
+  newPassword: string;
+}
+
+export function updateUserPassword(id: number, input: UpdateUserPasswordInput): Promise<null> {
+  return request(`/users/${id}/password`, { method: 'PATCH', body: input });
+}
+
+export function deleteUser(id: number): Promise<null> {
+  return request(`/users/${id}`, { method: 'DELETE' });
 }

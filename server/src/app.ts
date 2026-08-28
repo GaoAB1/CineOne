@@ -20,6 +20,7 @@ import embyRoutes from './routes/emby.routes';
 import calendarRoutes from './routes/calendar.routes';
 import upcomingRoutes from './routes/upcoming.routes';
 import moviepilotRoutes from './routes/moviepilot.routes';
+import usersRoutes from './routes/users.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -40,6 +41,7 @@ export function createApp(): Express {
   app.use('/api/calendar', calendarRoutes);
   app.use('/api/upcoming', upcomingRoutes);
   app.use('/api/moviepilot', moviepilotRoutes);
+  app.use('/api/users', usersRoutes);
 
   // ---- 生产静态托管：server/dist → ../../client/dist ----
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');

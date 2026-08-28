@@ -26,6 +26,7 @@ export default function EmbySection() {
   const [serverUrl, setServerUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [userId, setUserId] = useState('');
+  const [username, setUsername] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -65,10 +66,12 @@ export default function EmbySection() {
         emby_server_url: url.replace(/\/+$/, ''),
         emby_api_key: key,
         emby_user_id: uid,
+        emby_username: username.trim(),
       });
       setServerUrl('');
       setApiKey('');
       setUserId('');
+      setUsername('');
       setFeedback({ ok: true, text: 'Emby 配置已保存' });
       await loadStatus();
     } catch (err) {
@@ -154,7 +157,15 @@ export default function EmbySection() {
             label="用户 ID"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            placeholder="Emby 用户 ID"
+            placeholder="Emby 用户 GUID"
+            className="min-w-[160px] flex-1"
+            autoComplete="off"
+          />
+          <InputField
+            label="用户名（可选）"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="用户 ID 无效时按此自动识别"
             className="min-w-[160px] flex-1"
             autoComplete="off"
           />
@@ -189,7 +200,8 @@ export default function EmbySection() {
       )}
 
       <p className="type-caption mt-3 text-txt-tertiary">
-        在 Emby 控制台 → 高级 → API Key 中生成密钥；用户 ID 可在用户页面链接中查看。同步仅管理员可触发。
+        在 Emby 控制台 → 高级 → API Key 中生成密钥；用户 ID 可在用户页面链接中查看。若 ID
+        无效，「测试连接」会自动尝试按用户名识别并回填。同步仅管理员可触发。
       </p>
     </GlassPanel>
   );
