@@ -88,6 +88,41 @@ export interface EmbyPlayUrl {
   url: string;
 }
 
+/** 登录式接入（AuthenticateByName）结果 */
+export interface EmbyLoginResult {
+  serverName: string | null;
+  serverId: string | null;
+  userId: string;
+  username: string;
+}
+
+/** 媒体库浏览条目（实时分页，不落库） */
+export interface EmbyLibraryItem {
+  itemId: string;
+  title: string;
+  year: number | null;
+  mediaType: MediaType;
+  posterUrl: string | null;
+  overview: string | null;
+  played: boolean;
+  playedPercentage: number;
+}
+
+export interface EmbyLibraryPayload {
+  total: number;
+  items: EmbyLibraryItem[];
+}
+
+/** 内置播放器播放信息（HLS） */
+export interface EmbyPlayInfo {
+  title: string;
+  hlsUrl: string;
+  runtimeTicks: number | null;
+  playSessionId: string;
+}
+
+export type EmbyPlaybackEvent = 'start' | 'progress' | 'stop';
+
 // ---- 日历与想看 ----
 
 export interface CalendarEntry {

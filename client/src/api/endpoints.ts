@@ -9,6 +9,10 @@ import type {
   CreateUpcomingInput,
   DetailPayload,
   EmbyPlayUrl,
+  EmbyLoginResult,
+  EmbyLibraryPayload,
+  EmbyPlayInfo,
+  EmbyPlaybackEvent,
   EmbyStatus,
   EmbySyncResult,
   HomeSection,
@@ -159,6 +163,51 @@ export function triggerEmbySync(): Promise<EmbySyncResult> {
 
 export function fetchEmbyPlayUrl(tmdbId: number, mediaType: MediaType): Promise<EmbyPlayUrl> {
   return request(`/emby/play/${tmdbId}/${mediaType}`);
+}
+
+/** Emby 登录式接入：地址 + 用户名 + 密码（AuthenticateByName，成功后服务端持久化） */
+export function embyLogin(input: {
+  server_url: string;
+  username: string;
+  password: string;
+}): Promise<EmbyLoginResult> {
+  return request('/emby/login', { method: 'POST', body: input });
+}
+
+/** 退出 Emby 登录（清空 AccessToken 与用户 ID） */
+export function embyLogout(): Promise<null> {
+  return request('/emby/logout', { method: 'POST' });
+}
+
+/** 媒体库实时分页（浏览页） */
+export function fetchEmbyLibrary(params: {
+  page: number;
+  page_size?: number;
+  search?: string;
+  type?: 'all' | 'movie' | 'tv';
+}): Promise<EmbyLibraryPayload> {
+  return request('/emby/library', { query: params as unknown as Record<string, string> });
+}
+
+/** 内置播放器：取 HLS 播放信息（剧集自动取第一集） */
+export function fetchEmbyPlayInfo(itemId: string): Promise<EmbyPlayInfo> {
+  return request(`/emby/playinfo/${encodeURIComponent(itemId)}`);
+}
+
+/** 播放进度上报（start/progress/stop，失败由服务端静默） */
+export function reportEmbyPlayback(
+  itemId: string,
+  payload: {
+    event: EmbyPlaybackEvent;
+    position_ticks?: number;
+    paused?: boolean;
+    play_session_id?: string;
+  },
+): Promise<{ delivered: boolean }> {
+  return request(`/emby/playing/${encodeURIComponent(itemId)}`, {
+    method: 'POST',
+    body: payload,
+  });
 }
 
 // ---- calendar / upcoming ----

@@ -15,6 +15,8 @@ import DetailPage from './pages/DetailPage';
 import WatchlistPage from './pages/WatchlistPage';
 import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
+import LibraryPage from './pages/LibraryPage';
+import PlayerPage from './pages/PlayerPage';
 
 /** 启动分流：ready 前显示启动画面 */
 function BootstrapGate({ children }: { children: ReactNode }) {
@@ -71,11 +73,22 @@ function AppRoutes() {
         }
       >
         <Route path="/" element={<HomePage />} />
+        <Route path="/library" element={<LibraryPage />} />
         <Route path="/detail/:type/:id" element={<DetailPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
+
+      {/* 播放器：沉浸式全屏，不套 AppShell（无 TabBar） */}
+      <Route
+        path="/play/:itemId"
+        element={
+          <RequireAuth>
+            <PlayerPage />
+          </RequireAuth>
+        }
+      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -88,6 +88,10 @@ export function getSettingsView(): Record<string, unknown> {
     emby_api_key_set: embyKey.trim().length > 0,
     emby_user_id: embyUserId,
     emby_user_id_set: embyUserId.length > 0,
+    // 登录式接入：AccessToken 打码；用户名明文回显
+    emby_access_token_masked: maskApiKey(getSetting('emby_access_token')),
+    emby_access_token_set: getSetting('emby_access_token').trim().length > 0,
+    emby_username: getSetting('emby_username').trim(),
     // MoviePilot：地址非密钥回显明文；Token 只给打码与 set 标志
     moviepilot_server_url: mpUrl,
     moviepilot_server_url_set: mpUrl.length > 0,

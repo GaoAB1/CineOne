@@ -115,7 +115,9 @@ CineOne/
 - **tmdb**：status / home 分区聚合 / search / detail 代理（限流保护）
 - **ratings**：四源评分聚合查询 + 管理员手动修正（manual_override 永不被回源覆盖）
 - **watchlist**：追剧 CRUD + 进度推进（行按 user_id 隔离）
-- **emby**：status / sync（管理员）/ play 跳转链接——Emby 媒体库同步与播放状态回写
+- **emby**：login（地址+用户名+密码 → AuthenticateByName，持久化 AccessToken）/ logout /
+  library（媒体库实时分页+搜索+类型筛选）/ playinfo（HLS master.m3u8，剧集自动取第一集）/
+  playing（播放进度上报）/ status / sync（管理员）/ play 跳转链接
 - **calendar / upcoming**：在看剧集播出日历、想看订阅 CRUD
 - **moviepilot**：status / subscribed 查重 / subscribe 推送（subscribe_log 全量留痕）
 - **users**：用户列表 / 创建 / 重置密码 / 删除（管理员；保留最后一个管理员保护）
@@ -133,7 +135,7 @@ CineOne/
 | TMDB API Key | 影视数据源（必配） |
 | OMDB API Key | 烂番茄评分与外链（omdbapi.com 免费申请） |
 | 豆瓣聚合地址 | 第三方豆瓣评分聚合服务（可选，填则可覆盖豆瓣/爆米花源） |
-| Emby 服务器地址 / API Key / 用户 ID / 用户名(可选) | 媒体库同步 + 「在 Emby 中播放」；用户 ID 无效时按用户名自动识别 |
+| Emby 服务器地址 / 用户名 / 密码 | 登录式接入（官方 AuthenticateByName）；「媒体库」页浏览 + 内置 HLS 播放器；兼容旧 API Key 配置 |
 | MoviePilot 地址 / Token | 详情页一键订阅追更（Token 即 MoviePilot 设置页的 API_TOKEN，走 X-API-KEY 头） |
 
 ## 环境变量

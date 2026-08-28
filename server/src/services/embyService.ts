@@ -33,15 +33,22 @@ export interface EmbyConfig {
 export function isEmbyConfigured(): boolean {
   return (
     getSetting('emby_server_url').trim().length > 0 &&
-    getSetting('emby_api_key').trim().length > 0 &&
+    getAuthToken().length > 0 &&
     getSetting('emby_user_id').trim().length > 0
   );
+}
+
+/** 认证令牌：登录 AccessToken 优先，兼容旧 API Key 配置 */
+export function getAuthToken(): string {
+  const token = getSetting('emby_access_token').trim();
+  if (token) return token;
+  return getSetting('emby_api_key').trim();
 }
 
 function getConfig(): EmbyConfig {
   return {
     baseUrl: getSetting('emby_server_url').trim().replace(/\/+$/, ''),
-    apiKey: getSetting('emby_api_key').trim(),
+    apiKey: getAuthToken(),
     userId: getSetting('emby_user_id').trim(),
   };
 }
@@ -336,4 +343,283 @@ export function getPlayUrl(tmdbId: number, mediaType: 'movie' | 'tv'): string | 
   let url = `${base}/web/index.html#!/item?id=${encodeURIComponent(row.item_id)}`;
   if (row.server_id) url += `&serverId=${encodeURIComponent(row.server_id)}`;
   return url;
+}
+
+/* ==================== 登录式接入 / 媒体库浏览 / 内置播放 ==================== */
+
+/** 登录/播放会话使用的固定设备标识 */
+const EMBY_DEVICE_ID = 'cineone-web';
+const EMBY_AUTH_HEADER =
+  `MediaBrowser Client="CineOne", Device="CineOne Web", DeviceId="${EMBY_DEVICE_ID}", Version="1.0.0"`;
+
+export interface EmbyLoginInput {
+  serverUrl: string;
+  username: string;
+  password: string;
+}
+
+export interface EmbyLoginResult {
+  serverName: string | null;
+  serverId: string | null;
+  userId: string;
+  username: string;
+}
+
+interface AuthByNameResponse {
+  AccessToken?: string;
+  ServerId?: string;
+  User?: { Id?: string; Name?: string };
+}
+
+/**
+ * Emby 登录（地址 + 用户名 + 密码 → AuthenticateByName）：
+ * 成功后把 AccessToken / userId / username / baseUrl 写入 settings，
+ * 后续所有 Emby 请求以 AccessToken（X-Emby-Token）认证，替代手填 API Key。
+ */
+export async function loginEmby(input: EmbyLoginInput): Promise<EmbyLoginResult> {
+  const base = input.serverUrl.trim().replace(/\/+$/, '');
+  const username = input.username.trim();
+  if (!base || !username || !input.password) {
+    throw new ApiError(1001, '服务器地址、用户名与密码均为必填', 400);
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${base}/emby/Users/AuthenticateByName`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Emby-Authorization': EMBY_AUTH_HEADER,
+      },
+      body: JSON.stringify({ Username: username, Pw: input.password }),
+    });
+  } catch {
+    throw new ApiError(3002, 'Emby 连接失败（网络错误或超时），请检查服务器地址', 502);
+  }
+  if (res.status === 401) {
+    throw new ApiError(3011, 'Emby 用户名或密码错误', 401);
+  }
+  if (!res.ok) {
+    throw new ApiError(3012, `Emby 登录失败（HTTP ${res.status}）`, 502);
+  }
+  const body = (await res.json()) as AuthByNameResponse;
+  const token = body.AccessToken;
+  const userId = body.User?.Id;
+  if (!token || !userId) {
+    throw new ApiError(3012, 'Emby 登录响应缺少 AccessToken 或用户 ID', 502);
+  }
+
+  // 登录成功 → 持久化接入信息（AccessToken 优先于 API Key）
+  setSetting('emby_server_url', base);
+  setSetting('emby_access_token', token);
+  setSetting('emby_user_id', userId);
+  setSetting('emby_username', body.User?.Name?.trim() || username);
+
+  // 探测服务器名称（失败不阻断登录）
+  let serverName: string | null = null;
+  const cfg: EmbyConfig = { baseUrl: base, apiKey: token, userId };
+  try {
+    serverName = (await verifyConnection(cfg)).serverName;
+  } catch {
+    serverName = null;
+  }
+  return {
+    serverName,
+    serverId: typeof body.ServerId === 'string' ? body.ServerId : null,
+    userId,
+    username: body.User?.Name?.trim() || username,
+  };
+}
+
+/** 退出登录：清空 AccessToken 与用户 ID（保留地址与 API Key 旧配置） */
+export function logoutEmby(): void {
+  setSetting('emby_access_token', '');
+  setSetting('emby_user_id', '');
+}
+
+export interface LibraryItem {
+  itemId: string;
+  title: string;
+  year: number | null;
+  mediaType: 'movie' | 'tv';
+  posterUrl: string | null;
+  overview: string | null;
+  played: boolean;
+  playedPercentage: number;
+}
+
+export interface LibraryPayload {
+  total: number;
+  items: LibraryItem[];
+}
+
+interface LibraryRawItem {
+  Id?: string;
+  Name?: string;
+  Type?: string;
+  ProductionYear?: number;
+  Overview?: string;
+  ImageTags?: { Primary?: string };
+  UserData?: { Played?: boolean; PlayedPercentage?: number };
+}
+
+/**
+ * 实时分页拉取 Emby 媒体库（浏览页用，不落库）：
+ * 支持 SearchTerm / 类型过滤 / SortName 排序；海报 URL 由浏览器直连 Emby 图片端点。
+ */
+export async function getLibraryItems(opts: {
+  startIndex: number;
+  limit: number;
+  search?: string;
+  itemType?: 'movie' | 'tv' | 'all';
+}): Promise<LibraryPayload> {
+  const cfg = requireConfig();
+  const typeParam =
+    opts.itemType === 'movie' ? 'Movie' : opts.itemType === 'tv' ? 'Series' : 'Movie,Series';
+  const q = new URLSearchParams({
+    Recursive: 'true',
+    IncludeItemTypes: typeParam,
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
+    Fields: 'ProductionYear,Overview',
+    ImageTypeLimit: '1',
+    EnableImages: 'true',
+    StartIndex: String(Math.max(0, opts.startIndex)),
+    Limit: String(Math.min(200, Math.max(1, opts.limit))),
+  });
+  if (opts.search && opts.search.trim()) q.set('SearchTerm', opts.search.trim());
+
+  const page = await embyGet<{ Items?: LibraryRawItem[]; TotalRecordCount?: number }>(
+    cfg,
+    `/Users/${encodeURIComponent(cfg.userId)}/Items?${q.toString()}`,
+  );
+  const items: LibraryItem[] = (page.Items ?? [])
+    .filter((r) => r.Id && r.Name && (r.Type === 'Movie' || r.Type === 'Series'))
+    .map((r) => ({
+      itemId: r.Id as string,
+      title: r.Name as string,
+      year: typeof r.ProductionYear === 'number' ? r.ProductionYear : null,
+      mediaType: r.Type === 'Series' ? ('tv' as const) : ('movie' as const),
+      posterUrl: r.ImageTags?.Primary
+        ? `${cfg.baseUrl}/emby/Items/${encodeURIComponent(r.Id as string)}/Images/Primary?maxWidth=342`
+        : null,
+      overview: typeof r.Overview === 'string' && r.Overview.trim() ? r.Overview : null,
+      played: r.UserData?.Played === true,
+      playedPercentage:
+        typeof r.UserData?.PlayedPercentage === 'number'
+          ? Math.min(100, Math.max(0, r.UserData.PlayedPercentage))
+          : 0,
+    }));
+  return {
+    total:
+      typeof page.TotalRecordCount === 'number' && page.TotalRecordCount >= 0
+        ? page.TotalRecordCount
+        : items.length,
+    items,
+  };
+}
+
+export interface EmbyPlayInfo {
+  title: string;
+  hlsUrl: string;
+  runtimeTicks: number | null;
+  playSessionId: string;
+}
+
+interface ItemDetailResponse {
+  Id?: string;
+  Name?: string;
+  Type?: string;
+  RunTimeTicks?: number;
+  MediaSources?: Array<{ Id?: string }>;
+}
+
+/** 生成随机 PlaySessionId（进度上报对齐用） */
+function newPlaySessionId(): string {
+  return `cineone-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 播放信息：HLS（master.m3u8，Emby 自动按需转码）。
+ * Series 自动取第一集播放；MediaSourceId 缺省用条目自身 Id。
+ * URL 携带 api_key（HLS 切片请求无法自定义请求头，与 Emby 官方 Web 行为一致）。
+ */
+export async function getPlayInfo(itemId: string): Promise<EmbyPlayInfo> {
+  const cfg = requireConfig();
+  if (!itemId.trim()) throw new ApiError(1001, '非法的条目 ID', 400);
+
+  const detail = await embyGet<ItemDetailResponse>(
+    cfg,
+    `/Users/${encodeURIComponent(cfg.userId)}/Items/${encodeURIComponent(itemId)}?Fields=MediaSources`,
+  );
+  if (!detail.Id || !detail.Name) throw new ApiError(3013, '条目不存在或不可访问', 404);
+
+  let videoId = detail.Id;
+  let title = detail.Name;
+  let runtimeTicks = typeof detail.RunTimeTicks === 'number' ? detail.RunTimeTicks : null;
+  let mediaSourceId = detail.MediaSources?.[0]?.Id ?? detail.Id;
+
+  if (detail.Type === 'Series') {
+    // 剧集 → 取第一集
+    const eps = await embyGet<{ Items?: ItemDetailResponse[] }>(
+      cfg,
+      `/Shows/${encodeURIComponent(detail.Id)}/Episodes?UserId=${encodeURIComponent(cfg.userId)}` +
+        `&Fields=MediaSources&Limit=1&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending`,
+    );
+    const ep = eps.Items?.[0];
+    if (!ep?.Id) throw new ApiError(3013, '该剧集暂无可播放的剧集', 404);
+    videoId = ep.Id;
+    title = `${detail.Name} · ${ep.Name ?? '第 1 集'}`;
+    runtimeTicks = typeof ep.RunTimeTicks === 'number' ? ep.RunTimeTicks : null;
+    mediaSourceId = ep.MediaSources?.[0]?.Id ?? ep.Id;
+  }
+
+  const hlsUrl =
+    `${cfg.baseUrl}/emby/Videos/${encodeURIComponent(videoId)}/master.m3u8` +
+    `?MediaSourceId=${encodeURIComponent(mediaSourceId)}` +
+    `&api_key=${encodeURIComponent(cfg.apiKey)}` +
+    `&DeviceId=${EMBY_DEVICE_ID}&PlaySessionId=${newPlaySessionId()}`;
+
+  return { title, hlsUrl, runtimeTicks, playSessionId: newPlaySessionId() };
+}
+
+export interface PlaybackReport {
+  event: 'start' | 'progress' | 'stop';
+  positionTicks?: number;
+  paused?: boolean;
+  playSessionId?: string;
+}
+
+/**
+ * 播放进度上报（Sessions/Playing|Progress|Stopped）。
+ * 非致命链路：失败静默返回 false，不抛错。
+ */
+export async function reportPlayback(itemId: string, report: PlaybackReport): Promise<boolean> {
+  const cfg = requireConfig();
+  const suffix =
+    report.event === 'start' ? '' : report.event === 'progress' ? 'Progress' : 'Stopped';
+  const body: Record<string, unknown> = {
+    ItemId: itemId,
+    PlaySessionId: report.playSessionId ?? newPlaySessionId(),
+    DeviceId: EMBY_DEVICE_ID,
+  };
+  if (typeof report.positionTicks === 'number') body.PositionTicks = Math.max(0, report.positionTicks);
+  if (typeof report.paused === 'boolean') body.IsPaused = report.paused;
+
+  try {
+    const res = await fetch(`${cfg.baseUrl}/emby/Sessions/Playing${suffix}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Emby-Token': cfg.apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

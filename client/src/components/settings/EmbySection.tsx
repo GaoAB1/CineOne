@@ -1,10 +1,15 @@
 /**
- * 设置页「Emby 媒体库」分区：服务器地址 / API Key / 用户 ID 三项配置，
- * 「测试连接」调 GET /api/emby/status，「立即同步」调 POST /api/emby/sync 并反馈结果。
+ * 设置页「Emby 媒体库」分区：登录式接入（服务器地址 + 用户名 + 密码 → AuthenticateByName）。
+ * 登录成功后服务端持久化 AccessToken / 用户 ID；支持退出登录与立即同步。
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchEmbyStatus, triggerEmbySync, updateSettings } from '../../api/endpoints';
+import {
+  embyLogin,
+  embyLogout,
+  fetchEmbyStatus,
+  triggerEmbySync,
+} from '../../api/endpoints';
 import { ApiClientError } from '../../api/http';
 import type { EmbyStatus, EmbySyncResult } from '../../api/types';
 import Button from '../ui/Button';
@@ -24,12 +29,10 @@ function formatLastSync(lastSync: string | null): string {
 
 export default function EmbySection() {
   const [serverUrl, setServerUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   const [status, setStatus] = useState<EmbyStatus | null>(null);
@@ -51,51 +54,38 @@ export default function EmbySection() {
   const errText = (err: unknown, fallback: string): string =>
     err instanceof ApiClientError ? err.message : fallback;
 
-  const save = async (): Promise<void> => {
+  const handleLogin = async (): Promise<void> => {
     const url = serverUrl.trim();
-    const key = apiKey.trim();
-    const uid = userId.trim();
-    if (!url || !key || !uid) {
-      setFeedback({ ok: false, text: '服务器地址、API Key 与用户 ID 均为必填' });
+    const name = username.trim();
+    if (!url || !name || !password) {
+      setFeedback({ ok: false, text: '服务器地址、用户名与密码均为必填' });
       return;
     }
-    setSaving(true);
+    setLoggingIn(true);
     setFeedback(null);
     try {
-      await updateSettings({
-        emby_server_url: url.replace(/\/+$/, ''),
-        emby_api_key: key,
-        emby_user_id: uid,
-        emby_username: username.trim(),
+      const result = await embyLogin({ server_url: url, username: name, password });
+      setPassword('');
+      setFeedback({
+        ok: true,
+        text: `登录成功：${result.serverName ?? 'Emby 服务器'}（${result.username}）`,
       });
-      setServerUrl('');
-      setApiKey('');
-      setUserId('');
-      setUsername('');
-      setFeedback({ ok: true, text: 'Emby 配置已保存' });
       await loadStatus();
     } catch (err) {
-      setFeedback({ ok: false, text: errText(err, '保存失败') });
+      setFeedback({ ok: false, text: errText(err, '登录失败') });
     } finally {
-      setSaving(false);
+      setLoggingIn(false);
     }
   };
 
-  const testConnection = async (): Promise<void> => {
-    setTesting(true);
+  const handleLogout = async (): Promise<void> => {
     setFeedback(null);
     try {
-      const result = await fetchEmbyStatus();
-      setStatus(result);
-      setFeedback(
-        result.verified
-          ? { ok: true, text: `连接成功：${result.serverName ?? 'Emby 服务器'}，共 ${result.itemCount} 个条目` }
-          : { ok: false, text: '已配置但连接未通过，请检查地址与 API Key' },
-      );
+      await embyLogout();
+      setFeedback({ ok: true, text: '已断开 Emby 连接' });
+      await loadStatus();
     } catch (err) {
-      setFeedback({ ok: false, text: errText(err, '测试连接失败') });
-    } finally {
-      setTesting(false);
+      setFeedback({ ok: false, text: errText(err, '断开失败') });
     }
   };
 
@@ -106,7 +96,6 @@ export default function EmbySection() {
     try {
       const result = await triggerEmbySync();
       setSyncResult(result);
-      setFeedback(null);
       await loadStatus();
     } catch (err) {
       setFeedback({ ok: false, text: errText(err, '同步失败') });
@@ -114,6 +103,8 @@ export default function EmbySection() {
       setSyncing(false);
     }
   };
+
+  const configured = status?.configured === true;
 
   return (
     <GlassPanel className="mb-4 p-5" bordered>
@@ -124,17 +115,18 @@ export default function EmbySection() {
 
       <p className="type-caption mb-4 text-txt-secondary">
         当前状态：
-        {status?.configured ? (
+        {configured ? (
           <>
-            <span style={{ color: 'var(--color-success)' }}>已配置</span>
-            {status.serverName && <> · {status.serverName}</>} · {status.itemCount} 个条目 ·{' '}
-            {formatLastSync(status.lastSync)}
+            <span style={{ color: 'var(--color-success)' }}>已登录</span>
+            {status?.serverName && <> · {status.serverName}</>}
+            {status?.lastSync && <> · 上次同步 {formatLastSync(status.lastSync)}</>} · {status.itemCount} 个条目
           </>
         ) : (
-          <span style={{ color: 'var(--color-danger)' }}>未配置</span>
+          <span style={{ color: 'var(--color-danger)' }}>未连接</span>
         )}
       </p>
 
+      {/* 登录表单（已登录时仍可更换账号重登） */}
       <div className="flex flex-col gap-3">
         <InputField
           label="服务器地址"
@@ -146,46 +138,46 @@ export default function EmbySection() {
         />
         <div className="flex flex-wrap gap-3">
           <InputField
-            label="API Key"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Emby 控制台生成的 API Key"
-            className="min-w-[240px] flex-1"
-            autoComplete="off"
-          />
-          <InputField
-            label="用户 ID"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            placeholder="Emby 用户 GUID"
-            className="min-w-[160px] flex-1"
-            autoComplete="off"
-          />
-          <InputField
-            label="用户名（可选）"
+            label="用户名"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="用户 ID 无效时按此自动识别"
+            placeholder="Emby 用户名"
             className="min-w-[160px] flex-1"
             autoComplete="off"
+          />
+          <InputField
+            label="密码"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Emby 密码"
+            className="min-w-[160px] flex-1"
+            autoComplete="current-password"
           />
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button variant="filled" loading={saving} onClick={() => void save()}>
-          保存
+        <Button variant="filled" loading={loggingIn} onClick={() => void handleLogin()}>
+          {configured ? '重新登录' : '登录'}
         </Button>
-        <Button variant="gray" loading={testing} onClick={() => void testConnection()}>
-          测试连接
-        </Button>
-        <Button variant="tinted" loading={syncing} onClick={() => void syncNow()}>
-          立即同步
-        </Button>
+        {configured && (
+          <>
+            <Button variant="tinted" loading={syncing} onClick={() => void syncNow()}>
+              立即同步
+            </Button>
+            <Button variant="gray" onClick={() => void handleLogout()}>
+              断开连接
+            </Button>
+          </>
+        )}
       </div>
 
       {feedback && (
-        <p className="type-caption mt-3" style={{ color: feedback.ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
+        <p
+          className="type-caption mt-3"
+          style={{ color: feedback.ok ? 'var(--color-success)' : 'var(--color-danger)' }}
+        >
           {feedback.text}
         </p>
       )}
@@ -200,8 +192,8 @@ export default function EmbySection() {
       )}
 
       <p className="type-caption mt-3 text-txt-tertiary">
-        在 Emby 控制台 → 高级 → API Key 中生成密钥；用户 ID 可在用户页面链接中查看。若 ID
-        无效，「测试连接」会自动尝试按用户名识别并回填。同步仅管理员可触发。
+        使用 Emby 用户名密码登录（与官方客户端一致）；登录后自动获取访问令牌，无需手填 API Key
+        与用户 ID。「媒体库」页可直接浏览并播放。同步仅管理员可触发。
       </p>
     </GlassPanel>
   );

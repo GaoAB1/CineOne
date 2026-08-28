@@ -38,12 +38,14 @@ describe('settingsService', () => {
     assert.equal(getSetting('emby_last_sync'), '');
     // R2 新增 Emby 用户名（可选，用于用户 ID 自动识别）
     assert.equal(getSetting('emby_username'), '');
+    // R3 新增 Emby 登录 AccessToken（登录式接入，优先于 API Key）
+    assert.equal(getSetting('emby_access_token'), '');
     // M3 新增日历键：服务端写入的最近刷新时间
     assert.equal(getSetting('calendar_last_sync'), '');
     // M2 新增 MoviePilot 键：默认均为空串（未配置 → 功能降级不可用）
     assert.equal(getSetting('moviepilot_server_url'), '');
     assert.equal(getSetting('moviepilot_token'), '');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 13);
+    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 14);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {

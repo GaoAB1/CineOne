@@ -17,8 +17,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   emby_api_key: '',
   /** Emby 用户 ID（媒体库拉取走 /Users/{id}/Items；空串表示未配置） */
   emby_user_id: '',
-  /** Emby 用户名（可选；「测试连接」自动解析用户 ID 失败时按此匹配） */
+  /** Emby 用户名（登录时写入，自动解析用户 ID 时按此匹配） */
   emby_username: '',
+  /** Emby 登录 AccessToken（AuthenticateByName 获得优先于 API Key 使用） */
+  emby_access_token: '',
   /** Emby 上次全量/增量同步时间（服务端写入，用户无需手填） */
   emby_last_sync: '',
   /** 播出日历最近一次成功刷新时间（服务端写入；内存缓存 TTL 1 小时） */
