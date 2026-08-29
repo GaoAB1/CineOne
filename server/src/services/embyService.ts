@@ -464,15 +464,62 @@ interface LibraryRawItem {
   UserData?: { Played?: boolean; PlayedPercentage?: number };
 }
 
+export interface LibraryView {
+  id: string;
+  name: string;
+  /** Emby 虚拟库类型：movies / tvshows / music / homevideos 等 */
+  collectionType: string | null;
+  /** 媒体库封面（浏览器直连图片端点） */
+  posterUrl: string | null;
+}
+
+interface ViewRawItem {
+  Id?: string;
+  Name?: string;
+  CollectionType?: string;
+  ImageTags?: { Primary?: string };
+}
+
+/**
+ * 用户媒体库分类（Emby 官方 /Users/{id}/Views）：
+ * 返回每个虚拟媒体库（电影/剧集/…）及其封面，供浏览页侧栏分类导航。
+ */
+export async function getLibraryViews(): Promise<LibraryView[]> {
+  const cfg = requireConfig();
+  const page = await embyGet<{ Items?: ViewRawItem[] }>(
+    cfg,
+    `/Users/${encodeURIComponent(cfg.userId)}/Views`,
+  );
+  return (page.Items ?? [])
+    .filter((r) => r.Id && r.Name)
+    .map((r) => ({
+      id: r.Id as string,
+      name: r.Name as string,
+      collectionType: typeof r.CollectionType === 'string' ? r.CollectionType : null,
+      posterUrl: r.ImageTags?.Primary
+        ? `${cfg.baseUrl}/emby/Items/${encodeURIComponent(r.Id as string)}/Images/Primary?maxWidth=300`
+        : null,
+    }));
+}
+
+export type LibraryPlayedFilter = 'all' | 'unplayed' | 'played';
+export type LibrarySortBy = 'SortName' | 'DateCreated' | 'ProductionYear' | 'Random' | 'CommunityRating';
+
 /**
  * 实时分页拉取 Emby 媒体库（浏览页用，不落库）：
- * 支持 SearchTerm / 类型过滤 / SortName 排序；海报 URL 由浏览器直连 Emby 图片端点。
+ * 支持 ParentId（媒体库分类）/ SearchTerm / 观看状态筛选 / 排序；
+ * 海报 URL 由浏览器直连 Emby 图片端点。
  */
 export async function getLibraryItems(opts: {
   startIndex: number;
   limit: number;
   search?: string;
   itemType?: 'movie' | 'tv' | 'all';
+  /** 媒体库分类（虚拟库 Id，对应 /Users/{id}/Views 条目） */
+  parentId?: string;
+  played?: LibraryPlayedFilter;
+  sortBy?: LibrarySortBy;
+  sortOrder?: 'Ascending' | 'Descending';
 }): Promise<LibraryPayload> {
   const cfg = requireConfig();
   const typeParam =
@@ -480,14 +527,17 @@ export async function getLibraryItems(opts: {
   const q = new URLSearchParams({
     Recursive: 'true',
     IncludeItemTypes: typeParam,
-    SortBy: 'SortName',
-    SortOrder: 'Ascending',
+    SortBy: opts.sortBy ?? 'SortName',
+    SortOrder: opts.sortOrder ?? 'Ascending',
     Fields: 'ProductionYear,Overview',
     ImageTypeLimit: '1',
     EnableImages: 'true',
     StartIndex: String(Math.max(0, opts.startIndex)),
     Limit: String(Math.min(200, Math.max(1, opts.limit))),
   });
+  if (opts.parentId && opts.parentId.trim()) q.set('ParentId', opts.parentId.trim());
+  if (opts.played === 'played') q.set('Filters', 'IsPlayed');
+  else if (opts.played === 'unplayed') q.set('Filters', 'IsUnPlayed');
   if (opts.search && opts.search.trim()) q.set('SearchTerm', opts.search.trim());
 
   const page = await embyGet<{ Items?: LibraryRawItem[]; TotalRecordCount?: number }>(

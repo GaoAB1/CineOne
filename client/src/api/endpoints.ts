@@ -13,6 +13,9 @@ import type {
   EmbyLibraryPayload,
   EmbyPlayInfo,
   EmbyPlaybackEvent,
+  EmbyPlayedFilter,
+  EmbySortBy,
+  EmbyView,
   EmbyStatus,
   EmbySyncResult,
   HomeSection,
@@ -179,12 +182,21 @@ export function embyLogout(): Promise<null> {
   return request('/emby/logout', { method: 'POST' });
 }
 
-/** 媒体库实时分页（浏览页） */
+/** 媒体库分类（Emby /Users/{id}/Views：电影/剧集/…虚拟库） */
+export function fetchEmbyViews(): Promise<{ views: EmbyView[] }> {
+  return request('/emby/views');
+}
+
+/** 媒体库实时分页（浏览页，支持分类/观看状态筛选/排序） */
 export function fetchEmbyLibrary(params: {
   page: number;
   page_size?: number;
   search?: string;
   type?: 'all' | 'movie' | 'tv';
+  parent_id?: string;
+  played?: EmbyPlayedFilter;
+  sort_by?: EmbySortBy;
+  sort_order?: 'Ascending' | 'Descending';
 }): Promise<EmbyLibraryPayload> {
   return request('/emby/library', { query: params as unknown as Record<string, string> });
 }

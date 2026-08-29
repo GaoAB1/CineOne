@@ -13,6 +13,7 @@ import { runMigrate } from '../src/db/migrate';
 import { ApiError } from '../src/middleware/errorHandler';
 import {
   getLibraryItems,
+  getLibraryViews,
   getPlayInfo,
   loginEmby,
 } from '../src/services/embyService';
@@ -109,6 +110,48 @@ describe('embyService · 登录式接入', () => {
     assert.equal(item.mediaType, 'movie');
     assert.equal(item.played, true);
     assert.ok(item.posterUrl?.includes('/emby/Items/i1/Images/Primary'));
+  });
+
+  it('媒体库分类 Views：虚拟库映射（名称/CollectionType/封面）', async () => {
+    mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      const url = String(input);
+      assert.ok(url.includes('/Users/user-9/Views'));
+      return jsonRes({
+        Items: [
+          { Id: 'v1', Name: '电影', CollectionType: 'movies', ImageTags: { Primary: 'm1' } },
+          { Id: 'v2', Name: '剧集', CollectionType: 'tvshows', ImageTags: {} },
+          { Id: 'v3', Name: '音乐', CollectionType: 'music' },
+        ],
+      });
+    });
+    const views = await getLibraryViews();
+    assert.equal(views.length, 3);
+    assert.equal(views[0].name, '电影');
+    assert.equal(views[0].collectionType, 'movies');
+    assert.ok(views[0].posterUrl?.includes('/emby/Items/v1/Images/Primary'));
+    assert.equal(views[1].posterUrl, null);
+    assert.equal(views[2].collectionType, 'music');
+  });
+
+  it('媒体库筛选参数：ParentId/观看状态/排序透传', async () => {
+    let captured: URL | null = null;
+    mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      captured = new URL(String(input));
+      return jsonRes({ TotalRecordCount: 0, Items: [] });
+    });
+    await getLibraryItems({
+      startIndex: 0,
+      limit: 40,
+      parentId: 'v1',
+      played: 'unplayed',
+      sortBy: 'DateCreated',
+      sortOrder: 'Descending',
+    });
+    assert.ok(captured);
+    assert.equal(captured.searchParams.get('ParentId'), 'v1');
+    assert.equal(captured.searchParams.get('Filters'), 'IsUnPlayed');
+    assert.equal(captured.searchParams.get('SortBy'), 'DateCreated');
+    assert.equal(captured.searchParams.get('SortOrder'), 'Descending');
   });
 
   it('剧集 playinfo：自动取第一集并拼 master.m3u8', async () => {

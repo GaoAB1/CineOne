@@ -9,12 +9,14 @@ import { authRequired, requireAdmin } from '../middleware/auth';
 import {
   getEmbyStatus,
   getLibraryItems,
+  getLibraryViews,
   getPlayInfo,
   getPlayUrl,
   loginEmby,
   logoutEmby,
   reportPlayback,
   syncEmbyLibrary,
+  type LibrarySortBy,
 } from '../services/embyService';
 
 const router = Router();
@@ -43,7 +45,19 @@ router.post(
   }),
 );
 
-/** GET /api/emby/library?page=&page_size=&search=&type=all|movie|tv —— 浏览页实时分页 */
+/** GET /api/emby/views —— 用户媒体库分类（电影/剧集/…虚拟库） */
+router.get(
+  '/views',
+  asyncHandler(async (_req, res) => {
+    ok(res, { views: await getLibraryViews() });
+  }),
+);
+
+/**
+ * GET /api/emby/library —— 浏览页实时分页。
+ * parent_id=媒体库分类；played=all|unplayed|played；sort_by=SortName|DateCreated|
+ * ProductionYear|Random|CommunityRating；sort_order=Ascending|Descending。
+ */
 router.get(
   '/library',
   asyncHandler(async (req, res) => {
@@ -52,6 +66,18 @@ router.get(
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     const typeRaw = typeof req.query.type === 'string' ? req.query.type : 'all';
     const itemType = typeRaw === 'movie' || typeRaw === 'tv' ? typeRaw : 'all';
+    const parentId = typeof req.query.parent_id === 'string' ? req.query.parent_id : undefined;
+    const playedRaw = typeof req.query.played === 'string' ? req.query.played : 'all';
+    const played =
+      playedRaw === 'played' || playedRaw === 'unplayed' ? playedRaw : ('all' as const);
+    const sortRaw = typeof req.query.sort_by === 'string' ? req.query.sort_by : 'SortName';
+    const sortBy = (['SortName', 'DateCreated', 'ProductionYear', 'Random', 'CommunityRating'] as const).includes(
+      sortRaw as LibrarySortBy,
+    )
+      ? (sortRaw as LibrarySortBy)
+      : 'SortName';
+    const sortOrderRaw = typeof req.query.sort_order === 'string' ? req.query.sort_order : 'Ascending';
+    const sortOrder = sortOrderRaw === 'Descending' ? ('Descending' as const) : ('Ascending' as const);
     ok(
       res,
       await getLibraryItems({
@@ -59,6 +85,10 @@ router.get(
         limit: pageSize,
         search,
         itemType,
+        parentId,
+        played,
+        sortBy,
+        sortOrder,
       }),
     );
   }),

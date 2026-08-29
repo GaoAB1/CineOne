@@ -1,6 +1,9 @@
 /**
- * 媒体库页：浏览 Emby 全部媒体（实时分页 + 搜索 + 类型筛选）。
- * 未连接时展示引导空态与「连接 Emby 服务器」登录入口（地址 + 用户名 + 密码）。
+ * 媒体库页（Emby 官方式布局）：
+ * - 桌面端左侧「媒体库分类」侧栏（全部媒体 + 各虚拟库，带封面缩略图）；
+ * - 移动端分类横滑 chips；
+ * - 内容区工具栏：搜索 / 观看状态筛选（全部·未看·已看）/ 排序与升降序；
+ * - 海报网格 + 加载更多。未连接时展示登录引导。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,9 +13,16 @@ import {
   embyLogout,
   fetchEmbyLibrary,
   fetchEmbyStatus,
+  fetchEmbyViews,
 } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
-import type { EmbyLibraryItem, EmbyStatus } from '../api/types';
+import type {
+  EmbyLibraryItem,
+  EmbyPlayedFilter,
+  EmbySortBy,
+  EmbyStatus,
+  EmbyView,
+} from '../api/types';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 import GlassPanel from '../components/ui/GlassPanel';
@@ -20,19 +30,51 @@ import Spinner from '../components/ui/Spinner';
 
 const PAGE_SIZE = 40;
 
-type LibraryType = 'all' | 'movie' | 'tv';
-
-const TYPE_FILTERS: Array<{ key: LibraryType; label: string }> = [
+const PLAYED_FILTERS: Array<{ key: EmbyPlayedFilter; label: string }> = [
   { key: 'all', label: '全部' },
-  { key: 'movie', label: '电影' },
-  { key: 'tv', label: '剧集' },
+  { key: 'unplayed', label: '未看' },
+  { key: 'played', label: '已看' },
 ];
+
+const SORT_OPTIONS: Array<{ key: EmbySortBy; label: string }> = [
+  { key: 'SortName', label: '名称' },
+  { key: 'DateCreated', label: '加入时间' },
+  { key: 'ProductionYear', label: '发行年份' },
+  { key: 'CommunityRating', label: '评分' },
+  { key: 'Random', label: '随机' },
+];
+
+/** 媒体库分类图标（按 Emby CollectionType 映射 remixicon） */
+function viewIcon(collectionType: string | null): string {
+  switch (collectionType) {
+    case 'movies':
+      return 'ri-movie-line';
+    case 'tvshows':
+      return 'ri-tv-2-line';
+    case 'music':
+      return 'ri-music-2-line';
+    case 'homevideos':
+      return 'ri-video-line';
+    case 'books':
+      return 'ri-book-line';
+    case 'photos':
+      return 'ri-image-line';
+    case 'musicvideos':
+      return 'ri-mv-line';
+    default:
+      return 'ri-folder-line';
+  }
+}
 
 function PosterFallbackMini({ title }: { title: string }) {
   return (
     <div
       className="flex h-full w-full items-center justify-center p-2 text-center"
-      style={{ borderRadius: 'var(--radius-md)', aspectRatio: '2 / 3', background: 'var(--color-bg-secondary)' }}
+      style={{
+        borderRadius: 'var(--radius-md)',
+        aspectRatio: '2 / 3',
+        background: 'var(--color-bg-secondary)',
+      }}
     >
       <span className="type-caption line-clamp-3 text-txt-tertiary">{title}</span>
     </div>
@@ -44,6 +86,10 @@ export default function LibraryPage() {
 
   const [status, setStatus] = useState<EmbyStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [views, setViews] = useState<EmbyView[]>([]);
+
+  // 当前分类（'' = 全部媒体）
+  const [viewId, setViewId] = useState('');
 
   const [items, setItems] = useState<EmbyLibraryItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -52,7 +98,9 @@ export default function LibraryPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [type, setType] = useState<LibraryType>('all');
+  const [played, setPlayed] = useState<EmbyPlayedFilter>('all');
+  const [sortBy, setSortBy] = useState<EmbySortBy>('SortName');
+  const [sortDesc, setSortDesc] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
 
@@ -67,7 +115,6 @@ export default function LibraryPage() {
   const configured = status?.configured === true;
   const requestIdRef = useRef(0);
 
-  // 搜索防抖
   useEffect(() => {
     const t = window.setTimeout(() => setSearch(searchInput.trim()), 350);
     return () => window.clearTimeout(t);
@@ -83,12 +130,29 @@ export default function LibraryPage() {
     }
   }, []);
 
+  const loadViews = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetchEmbyViews();
+      setViews(res.views ?? []);
+    } catch {
+      setViews([]);
+    }
+  }, []);
+
   const loadFirstPage = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current;
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetchEmbyLibrary({ page: 1, page_size: PAGE_SIZE, search, type });
+      const res = await fetchEmbyLibrary({
+        page: 1,
+        page_size: PAGE_SIZE,
+        search,
+        parent_id: viewId || undefined,
+        played,
+        sort_by: sortBy,
+        sort_order: sortDesc ? 'Descending' : 'Ascending',
+      });
       if (reqId !== requestIdRef.current) return;
       setItems(res.items);
       setTotal(res.total);
@@ -101,11 +165,19 @@ export default function LibraryPage() {
     } finally {
       if (reqId === requestIdRef.current) setLoading(false);
     }
-  }, [search, type]);
+  }, [search, viewId, played, sortBy, sortDesc]);
 
   useEffect(() => {
     void loadStatus();
   }, [loadStatus]);
+
+  useEffect(() => {
+    if (configured) {
+      void loadViews();
+    } else {
+      setViews([]);
+    }
+  }, [configured, loadViews]);
 
   useEffect(() => {
     if (configured) void loadFirstPage();
@@ -116,7 +188,15 @@ export default function LibraryPage() {
     const next = page + 1;
     setLoadingMore(true);
     try {
-      const res = await fetchEmbyLibrary({ page: next, page_size: PAGE_SIZE, search, type });
+      const res = await fetchEmbyLibrary({
+        page: next,
+        page_size: PAGE_SIZE,
+        search,
+        parent_id: viewId || undefined,
+        played,
+        sort_by: sortBy,
+        sort_order: sortDesc ? 'Descending' : 'Ascending',
+      });
       setItems((prev) => [...prev, ...res.items]);
       setTotal(res.total);
       setPage(next);
@@ -135,11 +215,7 @@ export default function LibraryPage() {
     setLoggingIn(true);
     setLoginNotice(null);
     try {
-      await embyLogin({
-        server_url: serverUrl.trim(),
-        username: username.trim(),
-        password,
-      });
+      await embyLogin({ server_url: serverUrl.trim(), username: username.trim(), password });
       setPassword('');
       setLoginOpen(false);
       setLoginNotice(null);
@@ -162,47 +238,79 @@ export default function LibraryPage() {
     }
     setItems([]);
     setTotal(0);
+    setViewId('');
     await loadStatus();
   };
 
   if (!statusLoaded) return <Spinner label="正在加载媒体库" />;
 
+  const activeView = views.find((v) => v.id === viewId) ?? null;
+  const contentTitle = activeView ? activeView.name : '全部媒体';
+
+  /** 分类条目（侧栏/chips 共用）：全部媒体 + 各虚拟库 */
+  const sidebarItem = (
+    active: boolean,
+    label: string,
+    icon: string,
+    thumb: string | null,
+    onClick: () => void,
+  ): JSX.Element => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      className={`press-spring flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left text-[14px] transition-colors duration-fast ease-out ${
+        active ? 'font-medium' : 'text-txt-secondary hover:text-txt-primary'
+      }`}
+      style={
+        active
+          ? {
+              background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
+              color: 'var(--color-accent)',
+            }
+          : undefined
+      }
+      aria-current={active ? 'page' : undefined}
+    >
+      {thumb ? (
+        <img
+          src={thumb}
+          alt=""
+          loading="lazy"
+          className="h-[30px] w-[30px] shrink-0 object-cover"
+          style={{ borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-secondary)' }}
+        />
+      ) : (
+        <i className={`${icon} text-[18px]`} style={{ color: active ? 'var(--color-accent)' : 'var(--text-tertiary)' }} aria-hidden />
+      )}
+      <span className="truncate">{label}</span>
+    </button>
+  );
+
   return (
     <div>
-      {/* 页头：标题 + 状态 + 连接管理 */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      {/* 页头 */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="type-title">媒体库</h1>
           <p className="type-caption mt-1 text-txt-tertiary">
             {configured
-              ? `已连接${status?.serverName ? ` · ${status.serverName}` : ''}，共 ${total} 个条目`
+              ? `已连接${status?.serverName ? ` · ${status.serverName}` : ''}`
               : '连接你的 Emby 服务器，在应用内直接观看'}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {configured ? (
             <>
-              <Button
-                variant="gray"
-                className="!min-h-[36px] !px-3 text-[13px]"
-                onClick={() => setLoginOpen(true)}
-              >
+              <Button variant="gray" className="!min-h-[36px] !px-3 text-[13px]" onClick={() => setLoginOpen(true)}>
                 更换账号
               </Button>
-              <Button
-                variant="gray"
-                className="!min-h-[36px] !px-3 text-[13px]"
-                onClick={() => void handleLogout()}
-              >
+              <Button variant="gray" className="!min-h-[36px] !px-3 text-[13px]" onClick={() => void handleLogout()}>
                 断开
               </Button>
             </>
           ) : (
-            <Button
-              variant="filled"
-              className="!min-h-[36px] !px-3 text-[13px]"
-              onClick={() => setLoginOpen(true)}
-            >
+            <Button variant="filled" className="!min-h-[36px] !px-3 text-[13px]" onClick={() => setLoginOpen(true)}>
               <i className="ri-add-line text-[16px]" aria-hidden />
               添加 Emby 媒体库
             </Button>
@@ -259,10 +367,7 @@ export default function LibraryPage() {
               />
             </div>
             {loginNotice && (
-              <p
-                className="type-caption mt-3"
-                style={{ color: loginNotice.ok ? 'var(--color-success)' : 'var(--color-danger)' }}
-              >
+              <p className="type-caption mt-3" style={{ color: loginNotice.ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
                 {loginNotice.text}
               </p>
             )}
@@ -281,43 +386,73 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* 未连接：引导空态 */}
-      {!configured && (
+      {!configured ? (
         <GlassPanel className="mx-auto mt-10 max-w-[480px] p-8 text-center" bordered>
           <i className="ri-film-line text-[40px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
           <h2 className="type-headline mt-3">还没有连接 Emby</h2>
           <p className="type-caption mt-2 text-txt-secondary">
-            使用 Emby 地址 + 用户名密码登录，即可浏览并直接播放媒体库内容。
+            使用 Emby 地址 + 用户名密码登录，即可按媒体库分类浏览并直接播放。
           </p>
           <Button variant="filled" className="mt-5" onClick={() => setLoginOpen(true)}>
             <i className="ri-add-line text-[18px]" aria-hidden />
             添加 Emby 媒体库
           </Button>
         </GlassPanel>
-      )}
-
-      {/* 已连接：工具栏 + 海报网格 */}
-      {configured && (
-        <>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="min-w-[200px] flex-1">
-              <InputField
-                label=""
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="搜索标题…"
-                autoComplete="off"
-              />
+      ) : (
+        <div className="md:flex md:gap-6">
+          {/* 侧栏分类（桌面端） */}
+          <aside className="hidden shrink-0 md:block md:w-52">
+            <div
+              className="sticky top-6 rounded-md border border-line bg-card p-2"
+              style={{ borderRadius: 'var(--radius-md)' }}
+            >
+              <p className="type-caption px-2.5 pb-2 pt-1 text-txt-tertiary">我的媒体</p>
+              {sidebarItem(viewId === '', '全部媒体', 'ri-apps-2-line', null, () => setViewId(''))}
+              {views.map((v) =>
+                sidebarItem(
+                  viewId === v.id,
+                  v.name,
+                  viewIcon(v.collectionType),
+                  v.posterUrl,
+                  () => setViewId(v.id),
+                ),
+              )}
             </div>
-            <div className="flex gap-2">
-              {TYPE_FILTERS.map((t) => {
-                const active = type === t.key;
+          </aside>
+
+          {/* 内容区 */}
+          <div className="min-w-0 flex-1">
+            {/* 分类 chips（移动端） */}
+            <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
+              <button
+                type="button"
+                onClick={() => setViewId('')}
+                className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
+                style={
+                  viewId === ''
+                    ? {
+                        background: 'var(--surface-warm)',
+                        color: 'var(--color-accent)',
+                        border: '1px solid var(--color-accent)',
+                      }
+                    : {
+                        background: 'var(--color-bg-secondary)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid transparent',
+                      }
+                }
+              >
+                <i className="ri-apps-2-line text-[16px]" aria-hidden />
+                全部媒体
+              </button>
+              {views.map((v) => {
+                const active = viewId === v.id;
                 return (
                   <button
-                    key={t.key}
+                    key={v.id}
                     type="button"
-                    onClick={() => setType(t.key)}
-                    className="press-spring flex min-h-[36px] items-center rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
+                    onClick={() => setViewId(v.id)}
+                    className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
                     style={
                       active
                         ? {
@@ -332,88 +467,164 @@ export default function LibraryPage() {
                           }
                     }
                   >
-                    {t.label}
+                    <i className={`${viewIcon(v.collectionType)} text-[16px]`} aria-hidden />
+                    {v.name}
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {loadError && (
-            <p className="type-caption mb-4" style={{ color: 'var(--color-danger)' }}>{loadError}</p>
-          )}
-
-          {loading ? (
-            <Spinner label="正在加载媒体库" />
-          ) : items.length === 0 ? (
-            <GlassPanel className="mx-auto mt-8 max-w-[420px] p-8 text-center" bordered>
-              <i className="ri-file-search-line text-[36px]" style={{ color: 'var(--text-tertiary)' }} aria-hidden />
-              <p className="type-body mt-3 text-txt-secondary">没有匹配的媒体</p>
-              <p className="type-caption mt-1 text-txt-tertiary">换个关键词或类型筛选试试。</p>
-            </GlassPanel>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-                {items.map((item) => (
-                  <button
-                    key={item.itemId}
-                    type="button"
-                    onClick={() => navigate(`/play/${encodeURIComponent(item.itemId)}`)}
-                    className="press-spring group text-left"
-                    aria-label={`播放 ${item.title}`}
-                  >
-                    <div className="relative overflow-hidden" style={{ borderRadius: 'var(--radius-md)' }}>
-                      {item.posterUrl ? (
-                        <img
-                          src={item.posterUrl}
-                          alt={`${item.title} 海报`}
-                          loading="lazy"
-                          className="w-full object-cover transition-transform duration-normal ease-out group-hover:scale-[1.03]"
-                          style={{ aspectRatio: '2 / 3', background: 'var(--color-bg-secondary)' }}
-                        />
-                      ) : (
-                        <PosterFallbackMini title={item.title} />
-                      )}
-                      {/* 播放覆盖 */}
-                      <div
-                        className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-fast ease-out group-hover:opacity-100"
-                        style={{ background: 'rgba(0,0,0,0.35)' }}
-                      >
-                        <i className="ri-play-circle-fill text-[36px] text-white" aria-hidden />
-                      </div>
-                      {!item.played && item.playedPercentage > 0 && (
-                        <div
-                          className="absolute inset-x-0 bottom-0 h-[3px]"
-                          style={{ background: 'var(--color-bg-secondary)' }}
-                        >
-                          <div
-                            style={{
-                              width: `${item.playedPercentage}%`,
-                              height: '100%',
-                              background: 'var(--color-accent)',
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <p className="type-caption mt-1.5 truncate text-txt-primary">{item.title}</p>
-                    <p className="type-caption text-txt-tertiary">
-                      {item.year ?? '—'} · {item.mediaType === 'tv' ? '剧集' : '电影'}
-                    </p>
-                  </button>
-                ))}
+            {/* 分类标题 + 工具栏 */}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="type-headline">
+                {contentTitle}
+                <span className="type-caption ml-2 text-txt-tertiary">{total} 项</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as EmbySortBy)}
+                  aria-label="排序方式"
+                  className="h-[36px] rounded-sm border border-line bg-card px-2 text-[14px] text-txt-primary outline-none focus:border-accent"
+                >
+                  {SORT_OPTIONS.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      按{s.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  aria-label={sortDesc ? '切换为升序' : '切换为降序'}
+                  onClick={() => setSortDesc((p) => !p)}
+                  className="press-spring flex h-[36px] w-[36px] items-center justify-center rounded-sm border border-line bg-card text-txt-secondary transition-colors duration-fast ease-out hover:text-txt-primary"
+                >
+                  <i className={`${sortDesc ? 'ri-sort-desc' : 'ri-sort-asc'} text-[18px]`} aria-hidden />
+                </button>
               </div>
+            </div>
 
-              {items.length < total && (
-                <div className="mt-6 text-center">
-                  <Button variant="gray" loading={loadingMore} onClick={() => void loadMore()}>
-                    加载更多（{items.length}/{total}）
-                  </Button>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="min-w-[200px] flex-1">
+                <InputField
+                  label=""
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder={`在「${contentTitle}」中搜索…`}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex gap-2">
+                {PLAYED_FILTERS.map((f) => {
+                  const active = played === f.key;
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setPlayed(f.key)}
+                      className="press-spring flex min-h-[36px] items-center rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
+                      style={
+                        active
+                          ? {
+                              background: 'var(--surface-warm)',
+                              color: 'var(--color-accent)',
+                              border: '1px solid var(--color-accent)',
+                            }
+                          : {
+                              background: 'var(--color-bg-secondary)',
+                              color: 'var(--text-secondary)',
+                              border: '1px solid transparent',
+                            }
+                      }
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {loadError && (
+              <p className="type-caption mb-4" style={{ color: 'var(--color-danger)' }}>{loadError}</p>
+            )}
+
+            {loading ? (
+              <Spinner label="正在加载媒体库" />
+            ) : items.length === 0 ? (
+              <GlassPanel className="mx-auto mt-8 max-w-[420px] p-8 text-center" bordered>
+                <i className="ri-file-search-line text-[36px]" style={{ color: 'var(--text-tertiary)' }} aria-hidden />
+                <p className="type-body mt-3 text-txt-secondary">没有匹配的媒体</p>
+                <p className="type-caption mt-1 text-txt-tertiary">换个分类、关键词或筛选条件试试。</p>
+              </GlassPanel>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {items.map((item) => (
+                    <button
+                      key={item.itemId}
+                      type="button"
+                      onClick={() => navigate(`/play/${encodeURIComponent(item.itemId)}`)}
+                      className="press-spring group text-left"
+                      aria-label={`播放 ${item.title}`}
+                    >
+                      <div className="relative overflow-hidden" style={{ borderRadius: 'var(--radius-md)' }}>
+                        {item.posterUrl ? (
+                          <img
+                            src={item.posterUrl}
+                            alt={`${item.title} 海报`}
+                            loading="lazy"
+                            className="w-full object-cover transition-transform duration-normal ease-out group-hover:scale-[1.03]"
+                            style={{ aspectRatio: '2 / 3', background: 'var(--color-bg-secondary)' }}
+                          />
+                        ) : (
+                          <PosterFallbackMini title={item.title} />
+                        )}
+                        <div
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-fast ease-out group-hover:opacity-100"
+                          style={{ background: 'rgba(0,0,0,0.35)' }}
+                        >
+                          <i className="ri-play-circle-fill text-[36px] text-white" aria-hidden />
+                        </div>
+                        {item.played && (
+                          <span
+                            className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full"
+                            style={{ background: 'var(--color-accent)' }}
+                            aria-label="已观看"
+                          >
+                            <i className="ri-check-line text-[13px] text-white" aria-hidden />
+                          </span>
+                        )}
+                        {!item.played && item.playedPercentage > 0 && (
+                          <div className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: 'var(--color-bg-secondary)' }}>
+                            <div
+                              style={{
+                                width: `${item.playedPercentage}%`,
+                                height: '100%',
+                                background: 'var(--color-accent)',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <p className="type-caption mt-1.5 truncate text-txt-primary">{item.title}</p>
+                      <p className="type-caption text-txt-tertiary">
+                        {item.year ?? '—'} · {item.mediaType === 'tv' ? '剧集' : '电影'}
+                      </p>
+                    </button>
+                  ))}
                 </div>
-              )}
-            </>
-          )}
-        </>
+
+                {items.length < total && (
+                  <div className="mt-6 text-center">
+                    <Button variant="gray" loading={loadingMore} onClick={() => void loadMore()}>
+                      加载更多（{items.length}/{total}）
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

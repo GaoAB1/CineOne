@@ -113,6 +113,23 @@ export interface EmbyLibraryPayload {
   items: EmbyLibraryItem[];
 }
 
+/** Emby 媒体库分类（虚拟库：电影/剧集/…） */
+export interface EmbyView {
+  id: string;
+  name: string;
+  /** movies / tvshows / music / homevideos 等 */
+  collectionType: string | null;
+  posterUrl: string | null;
+}
+
+export type EmbyPlayedFilter = 'all' | 'unplayed' | 'played';
+export type EmbySortBy =
+  | 'SortName'
+  | 'DateCreated'
+  | 'ProductionYear'
+  | 'Random'
+  | 'CommunityRating';
+
 /** 内置播放器播放信息（HLS） */
 export interface EmbyPlayInfo {
   title: string;
