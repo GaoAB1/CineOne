@@ -116,8 +116,9 @@ CineOne/
 - **ratings**：四源评分聚合查询 + 管理员手动修正（manual_override 永不被回源覆盖）
 - **watchlist**：追剧 CRUD + 进度推进（行按 user_id 隔离）
 - **emby**：login（地址+用户名+密码 → AuthenticateByName，持久化 AccessToken）/ logout /
-  library（媒体库实时分页+搜索+类型筛选）/ playinfo（HLS master.m3u8，剧集自动取第一集）/
-  playing（播放进度上报）/ status / sync（管理员）/ play 跳转链接
+  views（媒体库分类）/ library（实时分页+分类+观看状态筛选+排序）/ history（观看记录）/
+  playinfo（HLS master.m3u8，剧集自动取第一集）/ playing（播放进度上报）/
+  status / sync（管理员）/ play 跳转链接
 - **calendar / upcoming**：在看剧集播出日历、想看订阅 CRUD
 - **moviepilot**：status / subscribed 查重 / subscribe 推送（subscribe_log 全量留痕）
 - **users**：用户列表 / 创建 / 重置密码 / 删除（管理员；保留最后一个管理员保护）
