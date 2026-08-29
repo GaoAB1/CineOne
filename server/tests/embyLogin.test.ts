@@ -15,6 +15,7 @@ import {
   getLibraryItems,
   getLibraryViews,
   getPlayInfo,
+  getWatchHistory,
   loginEmby,
 } from '../src/services/embyService';
 import { getSetting } from '../src/services/settingsService';
@@ -152,6 +153,51 @@ describe('embyService · 登录式接入', () => {
     assert.equal(captured.searchParams.get('Filters'), 'IsUnPlayed');
     assert.equal(captured.searchParams.get('SortBy'), 'DateCreated');
     assert.equal(captured.searchParams.get('SortOrder'), 'Descending');
+  });
+
+  it('观看记录：IsPlayed+DatePlayed 倒序，剧集回退剧封面并拼 S/E 标题', async () => {
+    let captured: URL | null = null;
+    mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      captured = new URL(String(input));
+      return jsonRes({
+        Items: [
+          {
+            Id: 'ep-5',
+            Name: '雨夜',
+            Type: 'Episode',
+            SeriesName: '漫长的季节',
+            SeriesId: 'ser-3',
+            ParentIndexNumber: 1,
+            IndexNumber: 2,
+            UserData: { LastPlayedDate: '2026-08-28T21:00:00Z' },
+          },
+          {
+            Id: 'mv-2',
+            Name: '盗梦空间',
+            Type: 'Movie',
+            ProductionYear: 2010,
+            ImageTags: { Primary: 'p2' },
+            UserData: { LastPlayedDate: '2026-08-27T10:00:00Z' },
+          },
+        ],
+      });
+    });
+    const items = await getWatchHistory(30);
+    assert.ok(captured);
+    assert.equal(captured.searchParams.get('Filters'), 'IsPlayed');
+    assert.equal(captured.searchParams.get('SortBy'), 'DatePlayed');
+    assert.equal(captured.searchParams.get('SortOrder'), 'Descending');
+    assert.equal(captured.searchParams.get('IncludeItemTypes'), 'Movie,Episode');
+
+    assert.equal(items.length, 2);
+    assert.equal(items[0].title, 'S1·E2 雨夜');
+    assert.equal(items[0].seriesName, '漫长的季节');
+    assert.equal(items[0].mediaType, 'tv');
+    assert.ok(items[0].posterUrl?.includes('/emby/Items/ser-3/Images/Primary'), '剧集应回退剧封面');
+    assert.equal(items[0].watchedDate, '2026-08-28T21:00:00Z');
+    assert.equal(items[1].title, '盗梦空间');
+    assert.equal(items[1].mediaType, 'movie');
+    assert.equal(items[1].year, 2010);
   });
 
   it('剧集 playinfo：自动取第一集并拼 master.m3u8', async () => {

@@ -11,12 +11,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   embyLogin,
   embyLogout,
+  fetchEmbyHistory,
   fetchEmbyLibrary,
   fetchEmbyStatus,
   fetchEmbyViews,
 } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type {
+  EmbyHistoryItem,
   EmbyLibraryItem,
   EmbyPlayedFilter,
   EmbySortBy,
@@ -66,8 +68,26 @@ function viewIcon(collectionType: string | null): string {
   }
 }
 
-function PosterFallbackMini({ title }: { title: string }) {
-  return (
+/** 观看时间：今天/昨天/更早 → 简短展示 */
+function formatWatched(iso: string | null): string {
+  if (!iso) return '已观看';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '已观看';
+  const now = new Date();
+  const sameDay = (a: Date, b: Date): boolean =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  if (sameDay(d, now)) return `今天 ${hh}:${mm}`;
+  if (sameDay(d, yesterday)) return `昨天 ${hh}:${mm}`;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function PosterFallbackMini({ title }: { title: string }) {  return (
     <div
       className="flex h-full w-full items-center justify-center p-2 text-center"
       style={{
@@ -87,6 +107,10 @@ export default function LibraryPage() {
   const [status, setStatus] = useState<EmbyStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [views, setViews] = useState<EmbyView[]>([]);
+
+  // 观看记录（最近播放，独立于分类/筛选）
+  const [history, setHistory] = useState<EmbyHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // 当前分类（'' = 全部媒体）
   const [viewId, setViewId] = useState('');
@@ -139,6 +163,18 @@ export default function LibraryPage() {
     }
   }, []);
 
+  const loadHistory = useCallback(async (): Promise<void> => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetchEmbyHistory(30);
+      setHistory(res.items ?? []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   const loadFirstPage = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current;
     setLoading(true);
@@ -174,10 +210,12 @@ export default function LibraryPage() {
   useEffect(() => {
     if (configured) {
       void loadViews();
+      void loadHistory();
     } else {
       setViews([]);
+      setHistory([]);
     }
-  }, [configured, loadViews]);
+  }, [configured, loadViews, loadHistory]);
 
   useEffect(() => {
     if (configured) void loadFirstPage();
@@ -422,6 +460,57 @@ export default function LibraryPage() {
 
           {/* 内容区 */}
           <div className="min-w-0 flex-1">
+            {/* 观看记录（最近播放，Emby 首页式横滑行） */}
+            {history.length > 0 && (
+              <div className="mb-6">
+                <div className="mb-3 flex items-center gap-2">
+                  <i className="ri-history-line text-[18px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
+                  <h2 className="type-headline">观看记录</h2>
+                  <span className="type-caption text-txt-tertiary">最近播放</span>
+                </div>
+                <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+                  {history.map((h) => (
+                    <button
+                      key={h.itemId}
+                      type="button"
+                      onClick={() => navigate(`/play/${encodeURIComponent(h.itemId)}`)}
+                      className="press-spring group w-[104px] shrink-0 text-left sm:w-[120px]"
+                      aria-label={`播放 ${h.seriesName ?? h.title}`}
+                    >
+                      <div className="relative overflow-hidden" style={{ borderRadius: 'var(--radius-md)' }}>
+                        {h.posterUrl ? (
+                          <img
+                            src={h.posterUrl}
+                            alt={`${h.seriesName ?? h.title} 海报`}
+                            loading="lazy"
+                            className="w-full object-cover transition-transform duration-normal ease-out group-hover:scale-[1.03]"
+                            style={{ aspectRatio: '2 / 3', background: 'var(--color-bg-secondary)' }}
+                          />
+                        ) : (
+                          <PosterFallbackMini title={h.seriesName ?? h.title} />
+                        )}
+                        <div
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-fast ease-out group-hover:opacity-100"
+                          style={{ background: 'rgba(0,0,0,0.35)' }}
+                        >
+                          <i className="ri-play-circle-fill text-[28px] text-white" aria-hidden />
+                        </div>
+                      </div>
+                      <p className="type-caption mt-1.5 truncate text-txt-primary">
+                        {h.seriesName ?? h.title}
+                      </p>
+                      <p className="type-caption truncate text-txt-tertiary">
+                        {h.seriesName ? h.title : formatWatched(h.watchedDate)}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {historyLoading && history.length === 0 && (
+              <p className="type-caption mb-6 text-txt-tertiary">正在加载观看记录…</p>
+            )}
+
             {/* 分类 chips（移动端） */}
             <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
               <button

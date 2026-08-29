@@ -130,6 +130,17 @@ export type EmbySortBy =
   | 'Random'
   | 'CommunityRating';
 
+/** 观看记录条目（Emby 已看完，按观看时间倒序） */
+export interface EmbyHistoryItem {
+  itemId: string;
+  title: string;
+  seriesName: string | null;
+  mediaType: MediaType;
+  posterUrl: string | null;
+  year: number | null;
+  watchedDate: string | null;
+}
+
 /** 内置播放器播放信息（HLS） */
 export interface EmbyPlayInfo {
   title: string;

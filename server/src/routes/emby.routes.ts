@@ -12,6 +12,7 @@ import {
   getLibraryViews,
   getPlayInfo,
   getPlayUrl,
+  getWatchHistory,
   loginEmby,
   logoutEmby,
   reportPlayback,
@@ -91,6 +92,16 @@ router.get(
         sortOrder,
       }),
     );
+  }),
+);
+
+/** GET /api/emby/history?limit= —— 观看记录（已看完条目按观看时间倒序） */
+router.get(
+  '/history',
+  asyncHandler(async (req, res) => {
+    const limitRaw = Number.parseInt(String(req.query.limit ?? '30'), 10);
+    const limit = Number.isFinite(limitRaw) ? limitRaw : 30;
+    ok(res, { items: await getWatchHistory(Math.min(100, Math.max(1, limit))) });
   }),
 );
 

@@ -11,6 +11,7 @@ import type {
   EmbyPlayUrl,
   EmbyLoginResult,
   EmbyLibraryPayload,
+  EmbyHistoryItem,
   EmbyPlayInfo,
   EmbyPlaybackEvent,
   EmbyPlayedFilter,
@@ -199,6 +200,11 @@ export function fetchEmbyLibrary(params: {
   sort_order?: 'Ascending' | 'Descending';
 }): Promise<EmbyLibraryPayload> {
   return request('/emby/library', { query: params as unknown as Record<string, string> });
+}
+
+/** 观看记录：已看完条目按 LastPlayedDate 倒序 */
+export function fetchEmbyHistory(limit = 30): Promise<{ items: EmbyHistoryItem[] }> {
+  return request('/emby/history', { query: { limit: String(limit) } });
 }
 
 /** 内置播放器：取 HLS 播放信息（剧集自动取第一集） */

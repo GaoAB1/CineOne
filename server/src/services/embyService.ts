@@ -473,6 +473,81 @@ export interface LibraryView {
   posterUrl: string | null;
 }
 
+export interface EmbyHistoryItem {
+  itemId: string;
+  /** 展示标题：电影=片名；剧集=S季·E集 集名 */
+  title: string;
+  /** 剧集所属剧名（电影为 null） */
+  seriesName: string | null;
+  mediaType: 'movie' | 'tv';
+  /** 剧集优先用本集剧照，缺省回退剧封面 */
+  posterUrl: string | null;
+  year: number | null;
+  /** 观看完成时间（Emby LastPlayedDate 原值，ISO 字符串） */
+  watchedDate: string | null;
+}
+
+interface HistoryRawItem {
+  Id?: string;
+  Name?: string;
+  Type?: string;
+  ProductionYear?: number;
+  SeriesName?: string;
+  SeriesId?: string;
+  ParentIndexNumber?: number;
+  IndexNumber?: number;
+  ImageTags?: { Primary?: string };
+  UserData?: { LastPlayedDate?: string };
+}
+
+/**
+ * 观看记录：已看完条目按 LastPlayedDate 倒序（电影 + 剧集单集）。
+ * 复用 /Users/{id}/Items 的 IsPlayed 筛选 + DatePlayed 排序，不依赖 Sessions 历史。
+ */
+export async function getWatchHistory(limit = 30): Promise<EmbyHistoryItem[]> {
+  const cfg = requireConfig();
+  const q = new URLSearchParams({
+    Recursive: 'true',
+    IncludeItemTypes: 'Movie,Episode',
+    Filters: 'IsPlayed',
+    SortBy: 'DatePlayed',
+    SortOrder: 'Descending',
+    Fields: 'ProductionYear',
+    ImageTypeLimit: '1',
+    EnableImages: 'true',
+    Limit: String(Math.min(100, Math.max(1, limit))),
+  });
+  const page = await embyGet<{ Items?: HistoryRawItem[] }>(
+    cfg,
+    `/Users/${encodeURIComponent(cfg.userId)}/Items?${q.toString()}`,
+  );
+  return (page.Items ?? [])
+    .filter((r) => r.Id && r.Name)
+    .map((r) => {
+      const isEpisode = r.Type === 'Episode';
+      const seasonNum = typeof r.ParentIndexNumber === 'number' ? r.ParentIndexNumber : null;
+      const epNum = typeof r.IndexNumber === 'number' ? r.IndexNumber : null;
+      const title =
+        isEpisode && seasonNum != null && epNum != null
+          ? `S${seasonNum}·E${epNum} ${r.Name}`
+          : (r.Name as string);
+      const posterUrl = r.ImageTags?.Primary
+        ? `${cfg.baseUrl}/emby/Items/${encodeURIComponent(r.Id as string)}/Images/Primary?maxWidth=342`
+        : isEpisode && r.SeriesId
+          ? `${cfg.baseUrl}/emby/Items/${encodeURIComponent(r.SeriesId)}/Images/Primary?maxWidth=342`
+          : null;
+      return {
+        itemId: r.Id as string,
+        title,
+        seriesName: isEpisode ? (r.SeriesName ?? null) : null,
+        mediaType: isEpisode ? ('tv' as const) : ('movie' as const),
+        posterUrl,
+        year: typeof r.ProductionYear === 'number' ? r.ProductionYear : null,
+        watchedDate: r.UserData?.LastPlayedDate ?? null,
+      };
+    });
+}
+
 interface ViewRawItem {
   Id?: string;
   Name?: string;
