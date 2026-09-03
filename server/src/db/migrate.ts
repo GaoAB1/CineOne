@@ -91,6 +91,16 @@ const DDL_STATEMENTS: string[] = [
     created_at TEXT    NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE INDEX IF NOT EXISTS idx_subscribe_log_user ON subscribe_log(user_id, created_at)`,
+  // ---- M4 豆瓣条目直查缓存（filmparser 查找资源） ----
+  `CREATE TABLE IF NOT EXISTS douban_resolve_cache (
+    tmdb_id    INTEGER NOT NULL,
+    media_type TEXT    NOT NULL CHECK (media_type IN ('movie','tv')),
+    subject_url TEXT,
+    title       TEXT,
+    year        INTEGER,
+    fetched_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (tmdb_id, media_type)
+  )`,
 ];
 
 export function runMigrate(): void {

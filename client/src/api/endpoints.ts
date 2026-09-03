@@ -95,6 +95,29 @@ export function fetchDetail(type: MediaType, id: number): Promise<DetailPayload>
   return request(`/tmdb/detail/${type}/${id}`);
 }
 
+// ---- douban resolve（查找资源豆瓣直查） ----
+
+export interface DoubanResolveResult {
+  subjectUrl: string | null;
+  title: string | null;
+  year: number | null;
+  source: 'cache' | 'douban' | null;
+  disabled: boolean;
+  degraded: boolean;
+}
+
+/** 无聚合豆瓣链接时，经豆瓣 suggest 反查条目链接 */
+export function resolveDoubanLink(
+  type: MediaType,
+  tmdbId: number,
+  title: string,
+  year?: number,
+): Promise<DoubanResolveResult> {
+  return request('/douban/resolve', {
+    query: { type, tmdb_id: tmdbId, title, year },
+  });
+}
+
 // ---- ratings ----
 
 export interface RatingsAggregate {

@@ -21,6 +21,7 @@ import calendarRoutes from './routes/calendar.routes';
 import upcomingRoutes from './routes/upcoming.routes';
 import moviepilotRoutes from './routes/moviepilot.routes';
 import usersRoutes from './routes/users.routes';
+import doubanRoutes from './routes/douban.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -42,6 +43,7 @@ export function createApp(): Express {
   app.use('/api/upcoming', upcomingRoutes);
   app.use('/api/moviepilot', moviepilotRoutes);
   app.use('/api/users', usersRoutes);
+  app.use('/api/douban', doubanRoutes);
 
   // ---- 生产静态托管：server/dist → ../../client/dist ----
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');

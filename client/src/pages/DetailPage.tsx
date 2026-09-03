@@ -17,6 +17,7 @@ import {
   deleteUpcoming,
   fetchMoviepilotSubscribed,
   subscribeMoviepilot,
+  resolveDoubanLink,
 } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { DetailPayload, MediaType, SeasonSnapshotEntry, WatchStatus } from '../api/types';
@@ -83,12 +84,16 @@ export default function DetailPage() {
   const [mpBusy, setMpBusy] = useState(false);
   const [mpToast, setMpToast] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // 查找资源：豆瓣直查 loading 与反馈文案（href 为手动兜底链接）
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupMsg, setLookupMsg] = useState<{ ok: boolean; text: string; href?: string } | null>(null);
+
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
 
   // ---- 查找资源：把该片豆瓣条目链接预填到 filmparser 解析页 ----
-  // 豆瓣链接来源：评分聚合接口（douban_api_base）回填的 douban.sourceUrl；
-  // 拿不到（未配置/该源暂无数据）时按钮置灰，避免丢出一个解析不了的链接。
+  // 优先取评分聚合接口（douban_api_base）回填的 douban.sourceUrl；
+  // 拿不到（未配置/该源暂无数据）时点按钮会经 /douban/resolve 反查豆瓣。
   const doubanSubjectUrl = useMemo(() => {
     const url = ratingsState?.ratings?.douban?.sourceUrl;
     return url && DOUBAN_SUBJECT_RE.test(url) ? url : null;
@@ -96,6 +101,57 @@ export default function DetailPage() {
   const resourceLookupHref = doubanSubjectUrl
     ? `${RESOURCE_PARSER_BASE}?url=${encodeURIComponent(doubanSubjectUrl)}`
     : null;
+
+  // ---- 查找资源动作 ----
+  const runResourceLookup = async (): Promise<void> => {
+    if (!detail || !mediaType || !Number.isInteger(tmdbId)) return;
+    // 已有豆瓣条目链接（评分聚合回填）→ 直接跳解析站，不再外呼豆瓣
+    if (resourceLookupHref) {
+      window.open(resourceLookupHref, '_blank', 'noreferrer');
+      return;
+    }
+    setLookupBusy(true);
+    setLookupMsg(null);
+    try {
+      const parsedYear = detail.releaseDate
+        ? Number.parseInt(detail.releaseDate.slice(0, 4), 10)
+        : NaN;
+      const res = await resolveDoubanLink(
+        mediaType,
+        tmdbId,
+        detail.title,
+        Number.isInteger(parsedYear) ? parsedYear : undefined,
+      );
+      if (res.subjectUrl) {
+        const href = `${RESOURCE_PARSER_BASE}?url=${encodeURIComponent(res.subjectUrl)}`;
+        window.open(href, '_blank', 'noreferrer');
+        setLookupMsg({
+          ok: true,
+          text: `已定位豆瓣条目「${res.title ?? detail.title}${res.year ? `（${res.year}）` : ''}」，已在解析页打开。`,
+        });
+      } else if (res.disabled) {
+        setLookupMsg({ ok: false, text: '豆瓣直查未启用（服务端 douban_search_enabled=0）' });
+      } else if (res.degraded) {
+        setLookupMsg({
+          ok: false,
+          text: '豆瓣反查失败（可能被限流或要求验证码），请稍后再试。',
+        });
+      } else {
+        setLookupMsg({
+          ok: false,
+          text: `豆瓣未找到「${detail.title}」的匹配条目。`,
+          href: `https://www.douban.com/search?q=${encodeURIComponent(detail.title)}`,
+        });
+      }
+    } catch (err) {
+      setLookupMsg({
+        ok: false,
+        text: err instanceof ApiClientError ? err.message : '豆瓣反查失败',
+      });
+    } finally {
+      setLookupBusy(false);
+    }
+  };
 
   // ---- 详情加载 ----
   const loadDetail = useCallback(async () => {
@@ -498,18 +554,33 @@ export default function DetailPage() {
           <Button
             variant="tinted"
             icon={<i className="ri-search-line" aria-hidden />}
-            disabled={!resourceLookupHref}
-            title={resourceLookupHref ? '打开解析站查找该片资源' : '该片暂无豆瓣条目链接，无法解析'}
-            onClick={() => {
-              if (resourceLookupHref) window.open(resourceLookupHref, '_blank', 'noreferrer');
-            }}
+            loading={lookupBusy}
+            title="在解析站查找该片资源（无聚合豆瓣链接时自动反查豆瓣）"
+            onClick={() => void runResourceLookup()}
           >
             查找资源
           </Button>
         </div>
-        {ratingsState && !ratingsState.loading && !resourceLookupHref && (
-          <p className="type-caption -mt-2 mb-4 text-txt-tertiary">
-            暂无豆瓣条目链接（豆瓣评分接口未返回 sourceUrl），查找不可用。
+        {lookupMsg && (
+          <p
+            className="-mt-2 mb-4 type-caption"
+            style={{ color: lookupMsg.ok ? 'var(--text-secondary)' : 'var(--color-danger)' }}
+          >
+            {lookupMsg.text}
+            {lookupMsg.href && (
+              <>
+                {' '}
+                <a
+                  className="underline"
+                  href={lookupMsg.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--color-accent)' }}
+                >
+                  打开豆瓣搜索页
+                </a>
+              </>
+            )}
           </p>
         )}
         {!watchEntry ? (

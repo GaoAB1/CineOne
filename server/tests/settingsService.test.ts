@@ -45,7 +45,9 @@ describe('settingsService', () => {
     // M2 新增 MoviePilot 键：默认均为空串（未配置 → 功能降级不可用）
     assert.equal(getSetting('moviepilot_server_url'), '');
     assert.equal(getSetting('moviepilot_token'), '');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 14);
+    // M4 豆瓣条目直查：默认开启（'1'）
+    assert.equal(getSetting('douban_search_enabled'), '1');
+    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 15);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {
@@ -111,6 +113,7 @@ describe('settingsService', () => {
     assert.equal(view.tmdb_api_key_set, true);
     assert.equal(view.ratings_ttl_hours, 24); // 前面用例设置为 24
     assert.equal(view.theme_default, 'dark');
+    assert.equal(view.douban_search_enabled, true); // 默认开启
     const raw = JSON.stringify(view);
     assert.ok(!raw.includes('super-secret-key-987654321'), '脱敏视图不得包含明文 Key');
     assert.ok(!('tmdb_api_key' in view), '视图中不应存在明文字段名');

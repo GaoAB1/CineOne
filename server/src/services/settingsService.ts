@@ -98,6 +98,7 @@ export function getSettingsView(): Record<string, unknown> {
     moviepilot_token_masked: maskApiKey(mpToken),
     moviepilot_token_set: mpToken.trim().length > 0,
     ratings_ttl_hours: Number.parseInt(getSetting('ratings_ttl_hours'), 10) || 72,
+    douban_search_enabled: getSetting('douban_search_enabled') === '1',
     theme_default: getSetting('theme_default') || 'dark',
   };
 }

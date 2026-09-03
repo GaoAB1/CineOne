@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   moviepilot_token: '',
   /** 第三方评分缓存 TTL（小时） */
   ratings_ttl_hours: '72',
+  /** 豆瓣条目直查开关（'1' 开启：无聚合豆瓣链接时经 movie.douban.com suggest 反查） */
+  douban_search_enabled: '1',
   /** 默认主题偏好 */
   theme_default: 'dark',
 };
