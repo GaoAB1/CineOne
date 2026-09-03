@@ -47,6 +47,12 @@ const STATUS_OPTIONS: Array<{ value: WatchStatus; label: string }> = [
   { value: 'dropped', label: '弃剧' },
 ];
 
+/** 第三方资源解析站：接收豆瓣条目链接（?url= 预填）并解析磁力/网盘资源 */
+const RESOURCE_PARSER_BASE = 'https://www.filmparser.xyz/';
+
+/** 仅认豆瓣条目页形态的链接，避免把聚合接口自身地址误当豆瓣链接 */
+const DOUBAN_SUBJECT_RE = /^https?:\/\/(?:www\.)?movie\.douban\.com\/subject\/\d+\/?(?:\?.*)?$/i;
+
 export default function DetailPage() {
   const params = useParams<{ type: string; id: string }>();
   const navigate = useNavigate();
@@ -79,6 +85,17 @@ export default function DetailPage() {
 
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
+
+  // ---- 查找资源：把该片豆瓣条目链接预填到 filmparser 解析页 ----
+  // 豆瓣链接来源：评分聚合接口（douban_api_base）回填的 douban.sourceUrl；
+  // 拿不到（未配置/该源暂无数据）时按钮置灰，避免丢出一个解析不了的链接。
+  const doubanSubjectUrl = useMemo(() => {
+    const url = ratingsState?.ratings?.douban?.sourceUrl;
+    return url && DOUBAN_SUBJECT_RE.test(url) ? url : null;
+  }, [ratingsState]);
+  const resourceLookupHref = doubanSubjectUrl
+    ? `${RESOURCE_PARSER_BASE}?url=${encodeURIComponent(doubanSubjectUrl)}`
+    : null;
 
   // ---- 详情加载 ----
   const loadDetail = useCallback(async () => {
@@ -455,32 +472,45 @@ export default function DetailPage() {
       <GlassPanel className="mb-6 p-5" bordered>
         <h2 className="type-headline mb-3">追剧</h2>
         {watchMsg && <p className="type-caption mb-2 text-txt-secondary">{watchMsg}</p>}
-        {(embyPlayUrl || !mpSubscribed) && (
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            {embyPlayUrl && (
-              <Button
-                variant="filled"
-                icon={<i className="ri-play-fill text-[20px]" aria-hidden />}
-                onClick={() => window.open(embyPlayUrl, '_blank', 'noreferrer')}
-              >
-                在 Emby 中播放
-              </Button>
-            )}
-            {!mpSubscribed && (
-              <Button
-                variant="tinted"
-                icon={<i className="ri-notification-3-line" aria-hidden />}
-                onClick={() => setMpDialogOpen(true)}
-              >
-                订阅
-              </Button>
-            )}
-            {mpSubscribed && (
-              <span className="inline-flex min-h-[44px] items-center gap-2 rounded-sm border border-line px-5 text-[17px] font-medium text-txt-tertiary">
-                <i className="ri-notification-3-line" aria-hidden /> 已订阅
-              </span>
-            )}
-          </div>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          {embyPlayUrl && (
+            <Button
+              variant="filled"
+              icon={<i className="ri-play-fill text-[20px]" aria-hidden />}
+              onClick={() => window.open(embyPlayUrl, '_blank', 'noreferrer')}
+            >
+              在 Emby 中播放
+            </Button>
+          )}
+          {!mpSubscribed ? (
+            <Button
+              variant="tinted"
+              icon={<i className="ri-notification-3-line" aria-hidden />}
+              onClick={() => setMpDialogOpen(true)}
+            >
+              订阅
+            </Button>
+          ) : (
+            <span className="inline-flex min-h-[44px] items-center gap-2 rounded-sm border border-line px-5 text-[17px] font-medium text-txt-tertiary">
+              <i className="ri-notification-3-line" aria-hidden /> 已订阅
+            </span>
+          )}
+          <Button
+            variant="tinted"
+            icon={<i className="ri-search-line" aria-hidden />}
+            disabled={!resourceLookupHref}
+            title={resourceLookupHref ? '打开解析站查找该片资源' : '该片暂无豆瓣条目链接，无法解析'}
+            onClick={() => {
+              if (resourceLookupHref) window.open(resourceLookupHref, '_blank', 'noreferrer');
+            }}
+          >
+            查找资源
+          </Button>
+        </div>
+        {ratingsState && !ratingsState.loading && !resourceLookupHref && (
+          <p className="type-caption -mt-2 mb-4 text-txt-tertiary">
+            暂无豆瓣条目链接（豆瓣评分接口未返回 sourceUrl），查找不可用。
+          </p>
         )}
         {!watchEntry ? (
           <div className="flex flex-wrap items-center gap-3">
