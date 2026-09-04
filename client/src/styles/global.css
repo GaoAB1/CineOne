@@ -18,6 +18,7 @@ body {
   background-repeat: no-repeat;
   background-size: cover;
   color: var(--text-primary);
+  overflow-x: clip;                            /* Hero 全视口出血防横向滚动条 */
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition:
@@ -75,6 +76,33 @@ body {
 }
 @keyframes page-fade-in {
   from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Hero 沉浸轮播过渡 ===== */
+/* 新背景进入：轻微放大落定（zoom-settle）淡入，营造电影感 */
+.hero-bg-enter {
+  animation: hero-bg-enter 900ms var(--ease-emphasized) both;
+}
+@keyframes hero-bg-enter {
+  from { opacity: 0; transform: scale(1.07); }
+  to   { opacity: 1; transform: scale(1); }
+}
+/* 旧背景退出：自然淡出 */
+.hero-bg-leave {
+  animation: hero-bg-leave 600ms var(--ease-out) both;
+}
+@keyframes hero-bg-leave {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* 前景信息（标题/简介/海报）在背景落定后错峰浮现 */
+.hero-panel-enter {
+  animation: hero-panel-enter 620ms var(--ease-emphasized) both;
+  animation-delay: 130ms;
+}
+@keyframes hero-panel-enter {
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 

@@ -1,13 +1,14 @@
 /**
- * 首页 Hero —— 规范 V2.0 电影级沉浸 Banner（自动轮播版）：
- * · 全宽出血（负 margin 突破页边距），占首屏 65~70vh
- * · 高清场景大图 + 左测渐变压暗，底部 hero-gradient-overlay 融入列表
+ * 首页 Hero —— 规范 V2.0 电影级沉浸 Banner（自动轮播 + 自然过渡版）：
+ * · 全视口出血（100vw 突破内容 max-w 与页边距），背景图左/右/上三向超出血铺满、
+ *   底部经 hero-gradient-overlay 渐出融入列表
+ * · 背景过渡：旧图淡出 + 新图 zoom-settle 淡入（crossfade），前景信息错峰浮现
  * · 左下信息区：琥珀 TMDB 评分徽章 / 年份类型、标题、梗概、纯白 CTA
- * · 右侧大海报（桌面），仅展示当前条目
- * · 每 6s 自动轮播下一张（hover / focus 暂停），左右箭头 + 紫光进度点手动切换
+ * · 右侧大海报（桌面）仅展示当前条目
+ * · 每 6s 自动轮播（hover 暂停），左右箭头 + 紫光进度点手动切换
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { MediaItem } from '../../api/types';
 import Button from '../ui/Button';
@@ -18,6 +19,17 @@ const AUTOPLAY_MS = 6000;
 interface HeroProps {
   items: MediaItem[];
 }
+
+/** 背景图定位：四向超出血（左右上溢出容器，底部贴齐交给渐出） */
+const BG_STYLE: CSSProperties = {
+  position: 'absolute',
+  left: '-14%',
+  right: '-14%',
+  top: '-12%',
+  bottom: 0,
+  width: '128%',
+  height: '112%',
+};
 
 function metaLine(item: MediaItem): string {
   const year = item.releaseDate ? item.releaseDate.slice(0, 4) : '';
@@ -41,13 +53,18 @@ export default function Hero({ items }: HeroProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const activeItem = candidates[activeIndex] ?? candidates[0];
+  const activeBackdrop = activeItem ? backdropUrlOf(activeItem) : undefined;
 
-  // 自动轮播：hover / focus 暂停；目录变化时兜底复位
+  // 上一张背景：轮播切换时与当前图交叉淡化
+  const lastBackdropRef = useRef<string | undefined>(undefined);
+  const [prevBackdrop, setPrevBackdrop] = useState<string | null>(null);
+
   useEffect(() => {
     if (candidates.length === 0) return;
     if (activeIndex >= candidates.length) setActiveIndex(0);
   }, [activeIndex, candidates.length]);
 
+  // 自动轮播：hover / focus 暂停
   useEffect(() => {
     if (paused || candidates.length <= 1) return;
     const timer = window.setInterval(() => {
@@ -56,9 +73,22 @@ export default function Hero({ items }: HeroProps) {
     return () => window.clearInterval(timer);
   }, [paused, candidates.length]);
 
+  // 记录旧背景并让其淡出，淡出完成后移除节点
+  useEffect(() => {
+    if (activeBackdrop && lastBackdropRef.current !== activeBackdrop) {
+      if (lastBackdropRef.current) setPrevBackdrop(lastBackdropRef.current);
+      lastBackdropRef.current = activeBackdrop;
+    }
+  }, [activeBackdrop]);
+
+  useEffect(() => {
+    if (!prevBackdrop) return;
+    const timer = window.setTimeout(() => setPrevBackdrop(null), 620);
+    return () => window.clearTimeout(timer);
+  }, [prevBackdrop]);
+
   if (!activeItem || candidates.length === 0) return null;
 
-  const activeBackdrop = backdropUrlOf(activeItem);
   const activePoster = posterUrlOf(activeItem);
   const detailsHref = `/detail/${activeItem.mediaType}/${activeItem.tmdbId}`;
 
@@ -71,42 +101,52 @@ export default function Hero({ items }: HeroProps) {
 
   return (
     <section
-      className="relative mb-10 overflow-hidden -mx-[var(--margin-page)] md:mb-12"
-      style={{ isolation: 'isolate' }}
+      className="relative mb-10 -mt-2 overflow-hidden md:mb-12 lg:-mt-4"
+      style={{ width: '100vw', marginLeft: 'calc(50% - 50vw)', isolation: 'isolate' }}
       aria-label="精选影视"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* 场景大图（backdrop） */}
+      {/* 场景大图（crossfade 双图）：旧图淡出、新图 zoom-settle 淡入 */}
+      {prevBackdrop && (
+        <img
+          key={`leave-${prevBackdrop}`}
+          src={prevBackdrop}
+          alt=""
+          aria-hidden
+          className="hero-bg-leave object-cover"
+          style={BG_STYLE}
+        />
+      )}
       {activeBackdrop ? (
         <img
-          key={activeBackdrop}
+          key={`enter-${activeBackdrop}`}
           src={activeBackdrop}
           alt=""
           aria-hidden
-          className="absolute inset-0 h-full w-full object-cover object-top"
+          className="hero-bg-enter object-cover"
+          style={BG_STYLE}
         />
       ) : (
         <div className="absolute inset-0" style={{ background: 'var(--color-bg-secondary)' }} />
       )}
 
-      {/* 顶部轻微压暗 + 左侧文本可读渐变 + 底部融入渐变 */}
-      <div className="absolute inset-0 bg-black/30" aria-hidden />
+      {/* 顶部轻微压暗 + 左侧文本可读渐变 + 底部渐出（浅色主题用同调暗化保证白色文字） */}
       <div
         className="absolute inset-0"
         aria-hidden
         style={{
           background:
-            'linear-gradient(90deg, rgba(11,9,20,0.84) 0%, rgba(11,9,20,0.46) 42%, rgba(11,9,20,0.1) 74%, transparent 100%)',
+            'linear-gradient(180deg, rgba(8,6,16,0.28) 0%, rgba(8,6,16,0.05) 18%, transparent 40%), linear-gradient(90deg, rgba(8,6,16,0.82) 0%, rgba(8,6,16,0.42) 44%, rgba(8,6,16,0.06) 78%, transparent 100%)',
         }}
       />
       <div className="hero-gradient-overlay absolute inset-0" aria-hidden />
 
       {/* 主体内容 */}
-      <div className="relative mx-auto flex min-h-[640px] max-w-[1200px] flex-col justify-center gap-8 px-[var(--margin-page)] py-10 md:min-h-[70vh] md:py-12">
+      <div className="relative mx-auto flex min-h-[640px] max-w-[1200px] flex-col justify-center gap-8 px-[var(--margin-page)] py-12 md:min-h-[70vh] md:py-14">
         <div className="flex items-center justify-between gap-12">
-          {/* 左信息区 */}
-          <div key={activeItem.tmdbId} className="page-fade max-w-[680px] text-white">
+          {/* 左信息区（背景落定后错峰浮现） */}
+          <div key={activeItem.tmdbId} className="hero-panel-enter max-w-[680px] text-white">
             <div className="flex flex-wrap items-center gap-2.5">
               <RatingBadge source="tmdb" tmdbScore={activeItem.voteAverage} />
               <span
@@ -193,7 +233,7 @@ export default function Hero({ items }: HeroProps) {
             <Link
               key={activePoster}
               to={detailsHref}
-              className="page-fade group relative hidden shrink-0 overflow-hidden ring-1 ring-white/25 md:block"
+              className="hero-panel-enter group relative hidden shrink-0 overflow-hidden ring-1 ring-white/25 md:block"
               style={{
                 width: 'clamp(190px, 19vw, 280px)',
                 borderRadius: 'var(--radius-card)',
