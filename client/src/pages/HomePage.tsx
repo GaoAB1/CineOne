@@ -122,12 +122,12 @@ export default function HomePage() {
 
   if (loading) return <HomeSkeleton />;
 
-  // Hero 数据源：第一个分区的第 1 个条目（有 backdropPath 才渲染）
-  const heroItem = sections[0]?.items[0];
+  // Hero 数据源：第一个分区的前 8 个条目，交给海报轨道横向滚动选择
+  const heroItems = sections[0]?.items.slice(0, 8) ?? [];
 
   return (
     <div>
-      {heroItem && <Hero item={heroItem} />}
+      {heroItems.length > 0 && <Hero items={heroItems} />}
       {upcoming.length > 0 && <MediaRow title="即将上映" items={upcoming} />}
       {sections.map((section) => (
         <MediaRow key={section.key} title={section.title} items={section.items} />

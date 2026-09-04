@@ -434,9 +434,27 @@ export default function DetailPage() {
 
   const year = detail.releaseDate ? detail.releaseDate.slice(0, 4) : '';
   const runtimeText = detail.runtime ? `${detail.runtime} 分钟` : '';
+  const handleBack = (): void => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
 
   return (
     <div className="pb-6">
+      <div className="mb-3 flex items-center">
+        <Button
+          variant="plain"
+          className="-ml-3 text-[15px]"
+          icon={<i className="ri-arrow-left-line text-[20px]" aria-hidden />}
+          onClick={handleBack}
+          aria-label="返回上一级"
+        >
+          返回
+        </Button>
+      </div>
       {/* 头图区（Hero 化：<md 4/3 / ≥md 21/9 + 双层遮罩） */}
       <div
         className="relative mb-6 aspect-[4/3] overflow-hidden shadow-md md:aspect-[21/9]"
