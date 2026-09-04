@@ -1,7 +1,6 @@
 /**
- * 底部居中悬浮 Dock 导航（Apple 液态玻璃，全断点统一）。
- * 玻璃材质只用于这层真正悬浮在内容之上的容器；激活页签用 accent 14% 透镜胶囊。
- * 用户菜单/主题切换/登出在 TopBar，Dock 只承担页面导航。
+ * 底部居中悬浮 Dock 导航（移动 / 平板；桌面端由 SideDock 接管）。
+ * 玻璃材质只用于这层真正悬浮在内容之上的容器；激活页签用霓虹紫透镜胶囊。
  */
 
 import { NavLink } from 'react-router-dom';
@@ -16,7 +15,7 @@ const NAV_ITEMS = [
 
 export default function TabBar() {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center lg:hidden">
       <nav
         aria-label="主导航"
         className="glass pointer-events-auto flex items-center gap-1 rounded-pill shadow-lg"
@@ -33,15 +32,15 @@ export default function TabBar() {
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `press-spring flex min-h-[52px] min-w-[68px] flex-col items-center justify-center gap-0.5 rounded-pill px-3 transition-colors duration-fast ease-out ${
+              `press-spring flex min-h-[52px] min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-pill px-3 transition-colors duration-fast ease-out ${
                 isActive ? '' : 'text-txt-secondary hover:text-txt-primary'
               }`
             }
             style={({ isActive }) =>
               isActive
                 ? {
-                    background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
-                    color: 'var(--color-accent)',
+                    background: 'color-mix(in srgb, var(--color-glow) 15%, transparent)',
+                    color: 'var(--color-glow)',
                   }
                 : undefined
             }

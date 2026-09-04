@@ -37,14 +37,27 @@ export default function SetupPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-app p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="grid w-full max-w-[820px] overflow-hidden shadow-md md:grid-cols-2" style={{ borderRadius: 'var(--radius-lg)' }}>
         <div
-          className="hidden flex-col justify-between p-10 md:flex"
-          style={{ background: 'var(--color-bg-secondary)' }}
+          className="relative hidden flex-col justify-between overflow-hidden p-10 md:flex"
+          style={{
+            background:
+              'linear-gradient(150deg, color-mix(in srgb, var(--color-glow) 24%, var(--color-bg-primary)) 0%, var(--color-bg-secondary) 100%)',
+          }}
         >
+          <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-[240px] w-[240px] rounded-full" style={{ background: 'color-mix(in srgb, var(--color-glow) 18%, transparent)', filter: 'blur(70px)' }} />
           <div className="flex items-center gap-2">
-            <i className="ri-film-fill text-[28px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
+            <span
+              className="flex h-11 w-11 items-center justify-center rounded-xl"
+              style={{
+                background: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
+                boxShadow: '0 8px 22px color-mix(in srgb, var(--color-glow) 40%, transparent)',
+                color: '#FFFFFF',
+              }}
+            >
+              <i className="ri-film-fill text-[22px]" aria-hidden />
+            </span>
             <span className="type-title">CineOne</span>
           </div>
           {/* 海报墙拼贴装饰（纯装饰，aria-hidden） */}

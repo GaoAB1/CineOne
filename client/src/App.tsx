@@ -23,7 +23,7 @@ function BootstrapGate({ children }: { children: ReactNode }) {
   const { ready } = useAuth();
   if (!ready) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-app">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <i className="ri-film-fill text-[44px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
         <Spinner label="CineOne 正在启动" />
       </div>

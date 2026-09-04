@@ -32,28 +32,41 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-app p-4">
-      {/* 影院灯光氛围：低透明度模糊光斑（纯装饰） */}
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      {/* 影院灯光氛围：霓虹紫 / 琥珀光斑（纯装饰） */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -left-24 -top-24 h-[360px] w-[360px] rounded-full"
+        className="pointer-events-none absolute -left-24 -top-24 h-[380px] w-[380px] rounded-full"
         style={{
-          background: 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
-          filter: 'blur(80px)',
+          background: 'color-mix(in srgb, var(--color-glow) 22%, transparent)',
+          filter: 'blur(90px)',
         }}
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -bottom-28 -right-20 h-[320px] w-[320px] rounded-full"
+        className="pointer-events-none absolute -bottom-28 -right-20 h-[340px] w-[340px] rounded-full"
         style={{
-          background: 'color-mix(in srgb, var(--color-success) 8%, transparent)',
-          filter: 'blur(80px)',
+          background: 'color-mix(in srgb, var(--amber-badge-bg) 14%, transparent)',
+          filter: 'blur(90px)',
         }}
       />
-      <GlassPanel className="relative w-full max-w-[400px] border-line p-8 shadow-lg md:p-10" bordered>
+      <GlassPanel
+        className="relative w-full max-w-[400px] border-line p-8 shadow-lg md:p-10"
+        style={{ boxShadow: 'var(--shadow-lg), 0 0 60px color-mix(in srgb, var(--color-glow) 14%, transparent)' }}
+        bordered
+      >
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <i className="ri-film-fill text-[40px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
-          <h1 className="type-title">CineOne</h1>
+          <span
+            className="flex h-[68px] w-[68px] items-center justify-center rounded-2xl"
+            style={{
+              background: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
+              boxShadow: '0 10px 30px color-mix(in srgb, var(--color-glow) 45%, transparent)',
+              color: '#FFFFFF',
+            }}
+          >
+            <i className="ri-film-fill text-[34px]" aria-hidden />
+          </span>
+          <h1 className="type-title mt-1">CineOne</h1>
           <p className="type-caption text-txt-secondary">家庭影视聚合 · 私有自托管</p>
         </div>
 

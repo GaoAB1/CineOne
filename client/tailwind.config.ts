@@ -11,6 +11,9 @@ export default {
         surface: 'var(--color-bg-secondary)',
         card: 'var(--color-bg-card)',
         accent: 'var(--color-accent)',
+        accentHover: 'var(--color-accent-hover)',
+        glow: 'var(--color-glow)',
+        amber: 'var(--color-amber)',
         danger: 'var(--color-danger)',
         success: 'var(--color-success)',
         txt: {

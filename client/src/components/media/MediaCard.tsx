@@ -33,7 +33,7 @@ export default function MediaCard({ item, fill = false }: MediaCardProps) {
       }`}
     >
       <div
-        className="hover-lift relative overflow-hidden shadow-sm"
+        className="group relative overflow-hidden shadow-sm transition-[transform,box-shadow] duration-slow ease-[var(--ease-glow)] group-hover:-translate-y-2 group-hover:scale-[1.02] group-hover:shadow-[var(--glow-card-hover)]"
         style={{
           borderRadius: 'var(--radius-card)',
           aspectRatio: '2 / 3',

@@ -13,6 +13,10 @@ html[data-theme='light'] {
 body {
   font-family: var(--font-system);
   background-color: var(--color-bg-primary);
+  background-image: var(--canvas-bg);          /* 沉浸画布：放射暗紫（浅色=淡紫）径向渐变 */
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -30,9 +34,39 @@ body {
 
 /* ===== 毛玻璃材质（顶栏/侧栏/弹层复用，参数化变量驱动） ===== */
 .glass {
-  background: var(--glass-tint);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
   backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+}
+
+/* ===== 规范 · 悬浮发光毛玻璃卡片（glass-glow-card） ===== */
+.glass-glow-card {
+  position: relative;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(20px);
+  backdrop-filter: saturate(var(--glass-saturate)) blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  transition: all var(--duration-slow) var(--ease-glow);
+}
+.glass-glow-card:hover {
+  transform: translateY(-8px) scale(1.025);
+  border-color: color-mix(in srgb, var(--color-glow) 40%, transparent);
+  box-shadow: var(--glow-card-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-glow-card:hover { transform: none; }
+}
+
+/* ===== 规范 · 沉浸式 Banner 渐变融合遮罩 ===== */
+.hero-gradient-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(11, 9, 20, 0.16) 0%,
+    rgba(11, 9, 20, 0.55) 58%,
+    rgba(11, 9, 20, 0.96) 100%
+  );
 }
 
 /* ===== 路由内容进入动画（挂在 AppShell <main>，key=pathname 触发重放） ===== */
@@ -40,7 +74,7 @@ body {
   animation: page-fade-in var(--duration-base) var(--ease-emphasized) both;
 }
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -84,7 +118,7 @@ body {
   display: none;
 }
 
-/* 卡片悬浮微缩放（hover 浮起） */
+/* 卡片悬浮微缩放（hover 浮起；发光交给 .glass-glow-card / 组件级） */
 .hover-lift {
   transition:
     transform var(--duration-fast) var(--ease-out),
@@ -114,7 +148,7 @@ body {
   transition-timing-function: var(--ease-out);
 }
 
-/* ===== 键盘焦点环（全局可达性；对 outline-none 元素同样生效） ===== */
+/* ===== 键盘焦点环（全局可达性；紫色霓虹光晕） ===== */
 :focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

@@ -17,12 +17,17 @@ export default function ProgressBar({ percent, className = '', showLabel = true 
         aria-valuenow={clamped}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-[6px] flex-1 overflow-hidden"
+        className="h-[3px] flex-1 overflow-hidden"
         style={{ background: 'var(--surface-warm)', borderRadius: 'var(--radius-pill)' }}
       >
         <div
           className="h-full transition-all duration-base ease-out"
-          style={{ width: `${clamped}%`, background: 'var(--color-accent)', borderRadius: 'var(--radius-pill)' }}
+          style={{
+            width: `${clamped}%`,
+            background: 'var(--color-glow)',
+            borderRadius: 'var(--radius-pill)',
+            boxShadow: '0 0 8px color-mix(in srgb, var(--color-glow) 65%, transparent)',
+          }}
         />
       </div>
       {showLabel && (

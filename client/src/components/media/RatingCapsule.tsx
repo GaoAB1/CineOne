@@ -27,7 +27,7 @@ export default function RatingCapsule({ score }: RatingCapsuleProps) {
         WebkitBackdropFilter: 'blur(12px)',
       }}
     >
-      <i className="ri-star-fill text-[11px]" style={{ color }} aria-hidden />
+      <i className="ri-star-fill text-[11px]" style={{ color: 'var(--amber-badge-bg)' }} aria-hidden />
       <span className="text-[11px] font-semibold tabular-nums" style={{ color }}>
         {score.toFixed(1)}
       </span>

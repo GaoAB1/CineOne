@@ -1,15 +1,18 @@
 /**
- * 评分胶囊（源图标 + 分值 + 配色语义 + stale 角标）。
+ * 评分徽章（源图标 + 分值 + stale 角标）。
+ * 规范 V2.0：权威评分徽章采用 Amber Gold（#F59E0B）琥珀金底 + 深字，
+ * 呼应 IMDb / 烂番茄 的黄色评分语言，作为权威标识叠放于玻璃信息卡上。
  * 展示规则：豆瓣一位小数；烂番茄/爆米花转百分比。
  */
 
+import type { CSSProperties } from 'react';
 import type { RatingSource } from '../../api/types';
 
 export type RatingSourceName = 'tmdb' | 'douban' | 'tomato' | 'popcorn';
 
 interface RatingBadgeProps {
   source: RatingSourceName;
-  data: RatingSource | null;
+  data?: RatingSource | null;
   /** TMDB 源直接给分值 */
   tmdbScore?: number;
   onClick?: () => void;
@@ -29,23 +32,21 @@ function formatValue(source: RatingSourceName, data: RatingSource): string {
   return `${Math.round(data.score * 10)}%`;
 }
 
-function semanticColor(score: number | null): string {
-  if (score == null) return 'var(--text-tertiary)';
-  if (score >= 8) return 'var(--color-success)';
-  if (score >= 6) return 'var(--text-primary)';
-  return 'var(--color-danger)';
-}
+const BADGE_STYLE: CSSProperties = {
+  background: 'var(--amber-badge-bg)',
+  color: 'var(--amber-badge-text)',
+};
 
 export default function RatingBadge({ source, data, tmdbScore, onClick }: RatingBadgeProps) {
   if (source === 'tmdb') {
     const value = tmdbScore != null ? tmdbScore.toFixed(1) : '暂无';
     return (
       <span
-        className="inline-flex h-7 items-center gap-1 rounded-pill border border-line bg-card px-3 text-[13px]"
-        style={{ color: semanticColor(tmdbScore ?? null) }}
+        className="inline-flex h-7 items-center gap-1.5 rounded-pill px-3 text-[13px] font-medium"
+        style={BADGE_STYLE}
       >
-        <i className="ri-star-fill" aria-hidden />
-        <span className="font-semibold">TMDB</span>
+        <i className="ri-star-fill text-[12px]" aria-hidden />
+        <span className="font-bold">TMDB</span>
         <span>{value}</span>
       </span>
     );
@@ -55,7 +56,7 @@ export default function RatingBadge({ source, data, tmdbScore, onClick }: Rating
   const score = data?.score ?? null;
   const stale = data?.stale ?? false;
   const manual = data?.manual ?? false;
-  // 外链优先：有 sourceUrl 且有分值时整颗胶囊渲染为 <a>（忽略 onClick，以实现最简为准）
+  // 外链优先：有 sourceUrl 且有分值时整颗胶囊渲染为 <a>
   const href = data?.sourceUrl && score != null ? data.sourceUrl : null;
   const clickable = href == null && typeof onClick === 'function';
   const Tag = (href != null ? 'a' : clickable ? 'button' : 'span') as 'a';
@@ -68,28 +69,26 @@ export default function RatingBadge({ source, data, tmdbScore, onClick }: Rating
           ? { type: 'button' as const, onClick }
           : {})}
       title={manual ? '人工修正值' : stale ? '来自缓存或降级数据' : undefined}
-      className={`inline-flex h-7 items-center gap-1.5 rounded-pill border border-line bg-card px-3 text-[13px] ${
+      className={`inline-flex h-7 items-center gap-1.5 rounded-pill px-3 text-[13px] font-medium ${
         href != null || clickable
-          ? 'cursor-pointer hover:opacity-80 transition-opacity duration-fast ease-out'
+          ? 'cursor-pointer hover:opacity-85 transition-opacity duration-fast ease-out'
           : ''
       }`}
+      style={BADGE_STYLE}
     >
-      <i className={`${meta.icon}`} style={{ color: 'var(--text-secondary)' }} aria-hidden />
-      <span className="font-semibold text-txt-secondary">{meta.label}</span>
-      <span className="font-medium" style={{ color: semanticColor(score) }}>
-        {data ? formatValue(source, data) : '暂无'}
-      </span>
+      <i className={`${meta.icon} text-[12px]`} aria-hidden />
+      <span className="font-bold">{meta.label}</span>
+      <span>{data ? formatValue(source, data) : '暂无'}</span>
       {(stale || manual) && (
-        <span className="rounded-pill px-1 text-[10px]" style={{ background: 'var(--color-bg-secondary)', color: 'var(--text-tertiary)' }}>
+        <span
+          className="rounded-pill px-1.5 py-[1px] text-[10px] font-semibold"
+          style={{ background: 'rgba(0,0,0,0.16)', color: 'var(--amber-badge-text)' }}
+        >
           缓存
         </span>
       )}
       {href != null && (
-        <i
-          className="ri-external-link-line text-[11px]"
-          aria-hidden
-          style={{ color: 'var(--text-tertiary)' }}
-        />
+        <i className="ri-external-link-line text-[11px]" aria-hidden />
       )}
     </Tag>
   );

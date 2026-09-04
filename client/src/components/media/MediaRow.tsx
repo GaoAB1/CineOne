@@ -42,8 +42,8 @@ export default function MediaRow({ title, items, loading = false, action }: Medi
   const hasMore = !action && list.length > DESKTOP_MAX_ITEMS;
 
   return (
-    <section className="mb-6">
-      <header className="mb-3 flex items-center justify-between">
+    <section className="mb-9">
+      <header className="mb-4 flex items-center justify-between">
         <h2 className="type-headline">{title}</h2>
         {action ?? (hasMore ? (
           <Link
