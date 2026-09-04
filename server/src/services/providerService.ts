@@ -55,6 +55,14 @@ export interface ProviderEntry {
   id: number;
   name: string;
   logoPath: string | null;
+  /** 平台 6 张热门样例海报（供首页平台入口大幅卡右侧堆叠展示） */
+  samples: ProviderSample[];
+}
+
+export interface ProviderSample {
+  tmdbId: number;
+  mediaType: MediaType;
+  posterPath: string | null;
 }
 
 export interface ProviderRegionGroup {
@@ -84,6 +92,50 @@ function normalize(s: string): string {
 const listCache = new Map<string, { ts: number; group: ProviderRegionGroup }>();
 const LIST_TTL_MS = 6 * 60 * 60 * 1000;
 
+/** 平台样例海报缓存：<providerId, {ts, samples}>，TTL 10 分钟 */
+const samplesCache = new Map<number, { ts: number; samples: ProviderSample[] }>();
+const SAMPLES_TTL_MS = 10 * 60 * 1000;
+const SAMPLE_COUNT = 6;
+
+async function fetchProviderSamples(
+  region: RegionDef,
+  providerId: number,
+): Promise<ProviderSample[]> {
+  const cached = samplesCache.get(providerId);
+  if (cached && Date.now() - cached.ts < SAMPLES_TTL_MS) return cached.samples;
+  const payload = await discoverProviderItems({
+    regionKey: region.key,
+    providerId,
+    mediaType: 'movie',
+    page: 1,
+    pageSize: SAMPLE_COUNT,
+  });
+  const samples: ProviderSample[] = payload.results.slice(0, SAMPLE_COUNT).map((m) => ({
+    tmdbId: m.tmdbId,
+    mediaType: m.mediaType,
+    posterPath: m.posterPath ?? null,
+  }));
+  samplesCache.set(providerId, { ts: Date.now(), samples });
+  return samples;
+}
+
+async function buildProvider(region: RegionDef, target: ProviderTarget, hit: TmdbProviderItem): Promise<ProviderEntry> {
+  const id = hit.provider_id as number;
+  let samples: ProviderSample[] = [];
+  try {
+    samples = await fetchProviderSamples(region, id);
+  } catch {
+    samples = [];
+  }
+  return {
+    key: target.key,
+    id,
+    name: hit.provider_name ?? target.key,
+    logoPath: tmdbImage(hit.logo_path, 'w92') ?? null,
+    samples,
+  };
+}
+
 async function fetchRegionGroup(region: RegionDef): Promise<ProviderRegionGroup> {
   const cached = listCache.get(region.key);
   if (cached && Date.now() - cached.ts < LIST_TTL_MS) return cached.group;
@@ -93,21 +145,19 @@ async function fetchRegionGroup(region: RegionDef): Promise<ProviderRegionGroup>
     { watch_region: region.key.toUpperCase() },
   );
   const all = data.results ?? [];
-  const providers: ProviderEntry[] = [];
-  for (const target of region.targets) {
-    const hit = all.find((p) => {
-      const name = typeof p.provider_name === 'string' ? p.provider_name : '';
-      return target.aliases.includes(normalize(name));
-    });
-    if (hit && typeof hit.provider_id === 'number') {
-      providers.push({
-        key: target.key,
-        id: hit.provider_id,
-        name: hit.provider_name ?? target.key,
-        logoPath: tmdbImage(hit.logo_path, 'w92') ?? null,
+  const matched = region.targets
+    .map((target) => {
+      const hit = all.find((p) => {
+        const name = typeof p.provider_name === 'string' ? p.provider_name : '';
+        return target.aliases.includes(normalize(name));
       });
-    }
-  }
+      return { target, hit };
+    })
+    .filter((m): m is { target: ProviderTarget; hit: TmdbProviderItem } => Boolean(m.hit));
+
+  const providers = await Promise.all(
+    matched.map(({ target, hit }) => buildProvider(region, target, hit!)),
+  );
   const group: ProviderRegionGroup = { key: region.key, label: region.label, providers };
   listCache.set(region.key, { ts: Date.now(), group });
   return group;
@@ -122,9 +172,10 @@ export function providerRegionDefs(): RegionDef[] {
   return REGION_DEFS;
 }
 
-/** 清空平台列表缓存（单元测试 / 平台列表刷新时使用） */
+/** 清空平台列表与样例缓存（单元测试 / 刷新时使用） */
 export function clearProviderListCache(): void {
   listCache.clear();
+  samplesCache.clear();
 }
 
 /**

@@ -88,6 +88,14 @@ export interface ProviderEntry {
   id: number;
   name: string;
   logoPath: string | null;
+  /** 平台 6 张热门样例海报（首页平台大幅卡右侧堆叠） */
+  samples: ProviderSample[];
+}
+
+export interface ProviderSample {
+  tmdbId: number;
+  mediaType: MediaType;
+  posterPath: string | null;
 }
 
 export interface ProviderRegionGroup {
