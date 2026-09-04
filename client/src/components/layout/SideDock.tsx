@@ -1,17 +1,18 @@
 /**
  * PC 桌面端悬浮 Icon Dock（规范 · 沉浸式 Icon Dock 栏）。
- * 左侧竖向悬浮毛玻璃胶囊，激活页签呈霓虹紫透镜 + 微光晕，hover 上浮发光。
+ * 左侧竖向悬浮毛玻璃胶囊：品牌标识 + 四个导航页签（首页/媒体库/追剧/搜索）
+ * + 底部用户头像菜单（设置/主题/退出）。激活页签呈霓虹紫透镜 + 微光晕。
  * 仅 ≥1024px 显示；移动端使用底部 Dock（TabBar）。
  */
 
 import { NavLink } from 'react-router-dom';
+import UserDockItem from './UserDockItem';
 
 const NAV_ITEMS = [
   { to: '/', label: '首页', iconLine: 'ri-home-5-line', iconFill: 'ri-home-5-fill' },
   { to: '/library', label: '媒体库', iconLine: 'ri-film-line', iconFill: 'ri-film-fill' },
   { to: '/watchlist', label: '追剧', iconLine: 'ri-tv-2-line', iconFill: 'ri-tv-2-fill' },
   { to: '/search', label: '搜索', iconLine: 'ri-search-line', iconFill: 'ri-search-fill' },
-  { to: '/settings', label: '设置', iconLine: 'ri-settings-4-line', iconFill: 'ri-settings-4-fill' },
 ];
 
 export default function SideDock() {
@@ -58,6 +59,10 @@ export default function SideDock() {
             )}
           </NavLink>
         ))}
+
+        {/* Dock 分隔 + 用户头像 */}
+        <div className="my-1" style={{ width: 28, height: 1, background: 'var(--border-light)' }} />
+        <UserDockItem menuClassName="left-full top-0 ml-3" />
       </nav>
     </div>
   );

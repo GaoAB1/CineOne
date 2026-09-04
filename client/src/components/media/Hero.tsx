@@ -1,16 +1,19 @@
 /**
- * 首页 Hero —— 规范 V2.0 电影级沉浸 Banner：
+ * 首页 Hero —— 规范 V2.0 电影级沉浸 Banner（自动轮播版）：
  * · 全宽出血（负 margin 突破页边距），占首屏 65~70vh
  * · 高清场景大图 + 左测渐变压暗，底部 hero-gradient-overlay 融入列表
- * · 左下信息区：评分徽章（琥珀金）/ 年份类型、艺术字标题、一句话梗概、纯白 CTA
- * · 右侧大海报（桌面），底部横向滚动海报轨道驱动切换
+ * · 左下信息区：琥珀 TMDB 评分徽章 / 年份类型、标题、梗概、纯白 CTA
+ * · 右侧大海报（桌面），仅展示当前条目
+ * · 每 6s 自动轮播下一张（hover / focus 暂停），左右箭头 + 紫光进度点手动切换
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { MediaItem } from '../../api/types';
 import Button from '../ui/Button';
 import RatingBadge from '../ui/RatingBadge';
+
+const AUTOPLAY_MS = 6000;
 
 interface HeroProps {
   items: MediaItem[];
@@ -36,12 +39,22 @@ export default function Hero({ items }: HeroProps) {
     [items],
   );
   const [activeIndex, setActiveIndex] = useState(0);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
   const activeItem = candidates[activeIndex] ?? candidates[0];
 
+  // 自动轮播：hover / focus 暂停；目录变化时兜底复位
   useEffect(() => {
-    if (activeIndex >= candidates.length && candidates.length > 0) setActiveIndex(0);
+    if (candidates.length === 0) return;
+    if (activeIndex >= candidates.length) setActiveIndex(0);
   }, [activeIndex, candidates.length]);
+
+  useEffect(() => {
+    if (paused || candidates.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % candidates.length);
+    }, AUTOPLAY_MS);
+    return () => window.clearInterval(timer);
+  }, [paused, candidates.length]);
 
   if (!activeItem || candidates.length === 0) return null;
 
@@ -49,16 +62,20 @@ export default function Hero({ items }: HeroProps) {
   const activePoster = posterUrlOf(activeItem);
   const detailsHref = `/detail/${activeItem.mediaType}/${activeItem.tmdbId}`;
 
-  const selectItem = (index: number): void => {
-    setActiveIndex(index);
-    trackRef.current?.children[index]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  const goTo = (index: number): void => {
+    setActiveIndex(((index % candidates.length) + candidates.length) % candidates.length);
   };
+
+  const handleMouseEnter = (): void => setPaused(true);
+  const handleMouseLeave = (): void => setPaused(false);
 
   return (
     <section
       className="relative mb-10 overflow-hidden -mx-[var(--margin-page)] md:mb-12"
       style={{ isolation: 'isolate' }}
       aria-label="精选影视"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* 场景大图（backdrop） */}
       {activeBackdrop ? (
@@ -80,16 +97,16 @@ export default function Hero({ items }: HeroProps) {
         aria-hidden
         style={{
           background:
-            'linear-gradient(90deg, rgba(11,9,20,0.82) 0%, rgba(11,9,20,0.45) 42%, rgba(11,9,20,0.08) 74%, transparent 100%)',
+            'linear-gradient(90deg, rgba(11,9,20,0.84) 0%, rgba(11,9,20,0.46) 42%, rgba(11,9,20,0.1) 74%, transparent 100%)',
         }}
       />
       <div className="hero-gradient-overlay absolute inset-0" aria-hidden />
 
       {/* 主体内容 */}
-      <div className="relative mx-auto flex min-h-[640px] max-w-[1200px] flex-col justify-between gap-10 px-[var(--margin-page)] py-8 md:min-h-[70vh] md:py-10">
-        <div className="flex items-end justify-between gap-12 pt-6 md:pt-8">
+      <div className="relative mx-auto flex min-h-[640px] max-w-[1200px] flex-col justify-center gap-8 px-[var(--margin-page)] py-10 md:min-h-[70vh] md:py-12">
+        <div className="flex items-center justify-between gap-12">
           {/* 左信息区 */}
-          <div className="max-w-[680px] text-white">
+          <div key={activeItem.tmdbId} className="page-fade max-w-[680px] text-white">
             <div className="flex flex-wrap items-center gap-2.5">
               <RatingBadge source="tmdb" tmdbScore={activeItem.voteAverage} />
               <span
@@ -123,13 +140,60 @@ export default function Hero({ items }: HeroProps) {
                 <i className="ri-arrow-right-s-line text-[18px]" aria-hidden />
               </Link>
             </div>
+
+            {/* 轮播控制：左右箭头 + 进度点 */}
+            <div className="mt-9 flex items-center gap-3">
+              <button
+                type="button"
+                aria-label="上一个精选"
+                onClick={() => goTo(activeIndex - 1)}
+                className="press-spring flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-white transition-colors duration-fast ease-out hover:bg-white/15"
+                style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)' }}
+              >
+                <i className="ri-arrow-left-s-line text-[20px]" aria-hidden />
+              </button>
+              <div className="flex items-center gap-2" role="tablist" aria-label="精选位置">
+                {candidates.map((item, index) => (
+                  <button
+                    key={`${item.mediaType}-${item.tmdbId}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={index === activeIndex}
+                    aria-label={`第 ${index + 1} 个精选：${item.title}`}
+                    onClick={() => goTo(index)}
+                    className="press-spring h-2 rounded-pill transition-all duration-base ease-out"
+                    style={{
+                      width: index === activeIndex ? 22 : 8,
+                      background:
+                        index === activeIndex
+                          ? 'var(--color-glow)'
+                          : 'rgba(255,255,255,0.35)',
+                      boxShadow:
+                        index === activeIndex
+                          ? '0 0 12px color-mix(in srgb, var(--color-glow) 70%, transparent)'
+                          : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-label="下一个精选"
+                onClick={() => goTo(activeIndex + 1)}
+                className="press-spring flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-white transition-colors duration-fast ease-out hover:bg-white/15"
+                style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)' }}
+              >
+                <i className="ri-arrow-right-s-line text-[20px]" aria-hidden />
+              </button>
+            </div>
           </div>
 
-          {/* 右大海报（桌面） */}
+          {/* 右大海报（桌面，仅当前条目） */}
           {activePoster && (
             <Link
+              key={activePoster}
               to={detailsHref}
-              className="group relative hidden shrink-0 overflow-hidden ring-1 ring-white/25 md:block"
+              className="page-fade group relative hidden shrink-0 overflow-hidden ring-1 ring-white/25 md:block"
               style={{
                 width: 'clamp(190px, 19vw, 280px)',
                 borderRadius: 'var(--radius-card)',
@@ -146,54 +210,6 @@ export default function Hero({ items }: HeroProps) {
               />
             </Link>
           )}
-        </div>
-
-        {/* 底部海报选择轨道 */}
-        <div
-          ref={trackRef}
-          className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 pt-1"
-          aria-label="精选海报列表"
-          onScroll={(event) => {
-            const track = event.currentTarget;
-            const first = track.firstElementChild as HTMLElement | null;
-            if (!first) return;
-            const step = first.offsetWidth + 12;
-            const nextIndex = Math.round(track.scrollLeft / step);
-            if (nextIndex !== activeIndex && nextIndex >= 0 && nextIndex < candidates.length) {
-              setActiveIndex(nextIndex);
-            }
-          }}
-        >
-          {candidates.map((item, index) => {
-            const poster = posterUrlOf(item);
-            const selected = index === activeIndex;
-            return (
-              <button
-                key={`${item.mediaType}-${item.tmdbId}`}
-                type="button"
-                className="group relative w-[78px] shrink-0 snap-start overflow-hidden border transition-[border-color,box-shadow,opacity,transform] duration-fast ease-out hover:-translate-y-1 sm:w-[92px]"
-                style={{
-                  borderRadius: 'var(--radius-sm)',
-                  aspectRatio: '2 / 3',
-                  borderColor: selected ? 'var(--color-glow)' : 'rgba(255,255,255,0.22)',
-                  boxShadow: selected
-                    ? '0 0 20px color-mix(in srgb, var(--color-glow) 45%, transparent)'
-                    : 'none',
-                  opacity: selected ? 1 : 0.68,
-                  background: 'rgba(255,255,255,0.08)',
-                }}
-                aria-label={`选择《${item.title}》`}
-                aria-pressed={selected}
-                onClick={() => selectItem(index)}
-              >
-                {poster ? (
-                  <img src={poster} alt="" className="h-full w-full object-cover" loading={index < 3 ? 'eager' : 'lazy'} />
-                ) : (
-                  <span className="flex h-full items-center justify-center px-1 text-[11px] leading-tight text-white/80">{item.title}</span>
-                )}
-              </button>
-            );
-          })}
         </div>
       </div>
     </section>
