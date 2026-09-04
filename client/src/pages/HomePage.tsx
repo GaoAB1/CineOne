@@ -9,6 +9,7 @@ import { ApiClientError } from '../api/http';
 import type { HomeSection, MediaItem } from '../api/types';
 import MediaRow from '../components/media/MediaRow';
 import Hero from '../components/media/Hero';
+import PlatformStrip from '../components/media/PlatformStrip';
 import GlassPanel from '../components/ui/GlassPanel';
 import Button from '../components/ui/Button';
 
@@ -128,6 +129,7 @@ export default function HomePage() {
   return (
     <div>
       {heroItems.length > 0 && <Hero items={heroItems} />}
+      <PlatformStrip />
       {upcoming.length > 0 && <MediaRow title="即将上映" items={upcoming} />}
       {sections.map((section) => (
         <MediaRow key={section.key} title={section.title} items={section.items} />

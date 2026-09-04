@@ -11,6 +11,7 @@ import { useAuth } from './stores/AuthContext';
 import SetupPage from './pages/SetupPage';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
+import ProviderBrowsePage from './pages/ProviderBrowsePage';
 import DetailPage from './pages/DetailPage';
 import WatchlistPage from './pages/WatchlistPage';
 import SearchPage from './pages/SearchPage';
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/providers/:regionKey/:providerKey" element={<ProviderBrowsePage />} />
       </Route>
 
       {/* 播放器：沉浸式全屏，不套 AppShell（无 TabBar） */}

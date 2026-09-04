@@ -13,6 +13,10 @@ import {
   searchMulti,
 } from '../services/tmdbService';
 import { fetchUpcoming } from '../services/tmdbUpcoming';
+import {
+  discoverProviderItems,
+  listProviderRegions,
+} from '../services/providerService';
 import { hasTmdbApiKey } from '../services/settingsService';
 import { ApiError } from '../middleware/errorHandler';
 import type { MediaType } from '../types/domain';
@@ -71,6 +75,45 @@ router.get(
   asyncHandler(async (req, res) => {
     const limit = Number.parseInt(String(req.query.limit ?? '10'), 10) || 10;
     ok(res, { items: await fetchUpcoming(Math.min(50, Math.max(1, limit))) });
+  }),
+);
+
+/** GET /api/tmdb/providers —— 流媒体平台分组（美区/国区，供首页平台入口卡） */
+router.get(
+  '/providers',
+  asyncHandler(async (_req, res) => {
+    ok(res, { regions: await listProviderRegions() });
+  }),
+);
+
+/** GET /api/tmdb/providers/items?region=us&provider_id=8&type=movie&page=1 —— 平台条目分页 */
+router.get(
+  '/providers/items',
+  asyncHandler(async (req, res) => {
+    const regionKey = typeof req.query.region === 'string' ? req.query.region : '';
+    const type = typeof req.query.type === 'string' ? req.query.type : 'movie';
+    if (regionKey !== 'us' && regionKey !== 'cn') {
+      throw new ApiError(1001, 'region 仅支持 us / cn', 400);
+    }
+    if (type !== 'movie' && type !== 'tv') {
+      throw new ApiError(1001, 'type 仅支持 movie / tv', 400);
+    }
+    const providerId = Number.parseInt(String(req.query.provider_id ?? ''), 10);
+    if (!Number.isInteger(providerId) || providerId <= 0) {
+      throw new ApiError(1001, 'provider_id 必须为正整数', 400);
+    }
+    const page = Number.parseInt(String(req.query.page ?? '1'), 10) || 1;
+    const pageSize = Math.min(60, Math.max(1, Number.parseInt(String(req.query.page_size ?? '40'), 10) || 40));
+    ok(
+      res,
+      await discoverProviderItems({
+        regionKey,
+        providerId,
+        mediaType: type as MediaType,
+        page,
+        pageSize,
+      }),
+    );
   }),
 );
 

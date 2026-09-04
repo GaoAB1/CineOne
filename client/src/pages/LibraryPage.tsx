@@ -217,6 +217,23 @@ export default function LibraryPage() {
     }
   }, [configured, loadViews, loadHistory]);
 
+  // 「默认选中第一个虚拟库」：避免“全部媒体”平铺长列表；仅首次自动选择，
+  // 用户手动点击任意分类（含“全部”）后不再干预
+  const defaultViewAppliedRef = useRef(false);
+  useEffect(() => {
+    if (configured && !defaultViewAppliedRef.current && views.length > 0 && viewId === '') {
+      defaultViewAppliedRef.current = true;
+      setViewId(views[0].id);
+    }
+  }, [configured, views, viewId]);
+
+  useEffect(() => {
+    if (!configured) {
+      setViewId('');
+      defaultViewAppliedRef.current = false;
+    }
+  }, [configured]);
+
   useEffect(() => {
     if (configured) void loadFirstPage();
   }, [configured, loadFirstPage]);
@@ -285,43 +302,35 @@ export default function LibraryPage() {
   const activeView = views.find((v) => v.id === viewId) ?? null;
   const contentTitle = activeView ? activeView.name : '全部媒体';
 
-  /** 分类条目（侧栏/chips 共用）：全部媒体 + 各虚拟库 */
-  const sidebarItem = (
+  /** 顶部横向分类 chip（全断点）：全部媒体 + 各虚拟库 */
+  const viewChip = (
     active: boolean,
     label: string,
     icon: string,
-    thumb: string | null,
     onClick: () => void,
   ): JSX.Element => (
     <button
       key={label}
       type="button"
       onClick={onClick}
-      className={`press-spring flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left text-[14px] transition-colors duration-fast ease-out ${
-        active ? 'font-medium' : 'text-txt-secondary hover:text-txt-primary'
-      }`}
+      className="press-spring flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
       style={
         active
           ? {
               background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
               color: 'var(--color-accent)',
+              border: '1px solid color-mix(in srgb, var(--color-accent) 55%, transparent)',
             }
-          : undefined
+          : {
+              background: 'var(--color-bg-secondary)',
+              color: 'var(--text-secondary)',
+              border: '1px solid transparent',
+            }
       }
       aria-current={active ? 'page' : undefined}
     >
-      {thumb ? (
-        <img
-          src={thumb}
-          alt=""
-          loading="lazy"
-          className="h-[30px] w-[30px] shrink-0 object-cover"
-          style={{ borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-secondary)' }}
-        />
-      ) : (
-        <i className={`${icon} text-[18px]`} style={{ color: active ? 'var(--color-accent)' : 'var(--text-tertiary)' }} aria-hidden />
-      )}
-      <span className="truncate">{label}</span>
+      <i className={`${icon} text-[17px]`} aria-hidden />
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 
@@ -437,26 +446,17 @@ export default function LibraryPage() {
           </Button>
         </GlassPanel>
       ) : (
-        <div className="md:flex md:gap-6">
-          {/* 侧栏分类（桌面端） */}
-          <aside className="hidden shrink-0 md:block md:w-52">
-            <div
-              className="sticky top-6 rounded-md border border-line bg-card p-2"
-              style={{ borderRadius: 'var(--radius-md)' }}
-            >
-              <p className="type-caption px-2.5 pb-2 pt-1 text-txt-tertiary">我的媒体</p>
-              {sidebarItem(viewId === '', '全部媒体', 'ri-apps-2-line', null, () => setViewId(''))}
+        <div>
+          {/* 我的媒体 · 顶部横向分类（全断点） */}
+          <div className="mb-6">
+            <p className="type-caption mb-2 px-1 font-medium text-txt-tertiary">我的媒体</p>
+            <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {viewChip(viewId === '', '全部媒体', 'ri-apps-2-line', () => setViewId(''))}
               {views.map((v) =>
-                sidebarItem(
-                  viewId === v.id,
-                  v.name,
-                  viewIcon(v.collectionType),
-                  v.posterUrl,
-                  () => setViewId(v.id),
-                ),
+                viewChip(viewId === v.id, v.name, viewIcon(v.collectionType), () => setViewId(v.id)),
               )}
             </div>
-          </aside>
+          </div>
 
           {/* 内容区 */}
           <div className="min-w-0 flex-1">
@@ -474,29 +474,44 @@ export default function LibraryPage() {
                       key={h.itemId}
                       type="button"
                       onClick={() => navigate(`/play/${encodeURIComponent(h.itemId)}`)}
-                      className="press-spring group w-[104px] shrink-0 text-left sm:w-[120px]"
+                      className="press-spring group w-[220px] shrink-0 snap-start text-left sm:w-[250px]"
                       aria-label={`播放 ${h.seriesName ?? h.title}`}
                     >
-                      <div className="relative overflow-hidden" style={{ borderRadius: 'var(--radius-md)' }}>
-                        {h.posterUrl ? (
+                      <div
+                        className="relative overflow-hidden"
+                        style={{
+                          borderRadius: 'var(--radius-md)',
+                          aspectRatio: '16 / 9',
+                          background: 'var(--color-bg-secondary)',
+                        }}
+                      >
+                        {h.thumbnailUrl || h.posterUrl ? (
                           <img
-                            src={h.posterUrl}
+                            src={h.thumbnailUrl ?? h.posterUrl ?? undefined}
                             alt={`${h.seriesName ?? h.title} 海报`}
                             loading="lazy"
-                            className="w-full object-cover transition-transform duration-normal ease-out group-hover:scale-[1.03]"
-                            style={{ aspectRatio: '2 / 3', background: 'var(--color-bg-secondary)' }}
+                            className="h-full w-full object-cover transition-transform duration-base ease-out group-hover:scale-[1.03]"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (img.dataset.fallback !== '1' && h.posterUrl) {
+                                img.dataset.fallback = '1';
+                                img.src = h.posterUrl;
+                              }
+                            }}
                           />
                         ) : (
-                          <PosterFallbackMini title={h.seriesName ?? h.title} />
+                          <span className="flex h-full w-full items-center justify-center text-txt-tertiary">
+                            <i className="ri-clapperboard-line text-[22px]" aria-hidden />
+                          </span>
                         )}
                         <div
                           className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-fast ease-out group-hover:opacity-100"
                           style={{ background: 'rgba(0,0,0,0.35)' }}
                         >
-                          <i className="ri-play-circle-fill text-[28px] text-white" aria-hidden />
+                          <i className="ri-play-circle-fill text-[34px] text-white" aria-hidden />
                         </div>
                       </div>
-                      <p className="type-caption mt-1.5 truncate text-txt-primary">
+                      <p className="mt-1.5 truncate text-[13px] font-medium text-txt-primary">
                         {h.seriesName ?? h.title}
                       </p>
                       <p className="type-caption truncate text-txt-tertiary">
@@ -510,58 +525,6 @@ export default function LibraryPage() {
             {historyLoading && history.length === 0 && (
               <p className="type-caption mb-6 text-txt-tertiary">正在加载观看记录…</p>
             )}
-
-            {/* 分类 chips（移动端） */}
-            <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
-              <button
-                type="button"
-                onClick={() => setViewId('')}
-                className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
-                style={
-                  viewId === ''
-                    ? {
-                        background: 'var(--surface-warm)',
-                        color: 'var(--color-accent)',
-                        border: '1px solid var(--color-accent)',
-                      }
-                    : {
-                        background: 'var(--color-bg-secondary)',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid transparent',
-                      }
-                }
-              >
-                <i className="ri-apps-2-line text-[16px]" aria-hidden />
-                全部媒体
-              </button>
-              {views.map((v) => {
-                const active = viewId === v.id;
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setViewId(v.id)}
-                    className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
-                    style={
-                      active
-                        ? {
-                            background: 'var(--surface-warm)',
-                            color: 'var(--color-accent)',
-                            border: '1px solid var(--color-accent)',
-                          }
-                        : {
-                            background: 'var(--color-bg-secondary)',
-                            color: 'var(--text-secondary)',
-                            border: '1px solid transparent',
-                          }
-                    }
-                  >
-                    <i className={`${viewIcon(v.collectionType)} text-[16px]`} aria-hidden />
-                    {v.name}
-                  </button>
-                );
-              })}
-            </div>
 
             {/* 分类标题 + 工具栏 */}
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

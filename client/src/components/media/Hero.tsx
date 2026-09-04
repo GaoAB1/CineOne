@@ -140,6 +140,15 @@ export default function Hero({ items }: HeroProps) {
             'linear-gradient(180deg, rgba(8,6,16,0.28) 0%, rgba(8,6,16,0.05) 18%, transparent 40%), linear-gradient(90deg, rgba(8,6,16,0.82) 0%, rgba(8,6,16,0.42) 44%, rgba(8,6,16,0.06) 78%, transparent 100%)',
         }}
       />
+      {/* 边缘羽化：左右上三向渐变过渡，消除超宽屏下图片边缘割裂 */}
+      <div
+        className="absolute inset-0"
+        aria-hidden
+        style={{
+          background:
+            'linear-gradient(90deg, rgba(8,6,16,0.6) 0%, rgba(8,6,16,0.12) 6%, transparent 12%), linear-gradient(270deg, rgba(8,6,16,0.6) 0%, rgba(8,6,16,0.12) 6%, transparent 12%), linear-gradient(180deg, rgba(8,6,16,0.55) 0%, rgba(8,6,16,0.1) 8%, transparent 14%)',
+        }}
+      />
       <div className="hero-gradient-overlay absolute inset-0" aria-hidden />
 
       {/* 主体内容 */}

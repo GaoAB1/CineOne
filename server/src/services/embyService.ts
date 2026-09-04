@@ -482,6 +482,8 @@ export interface EmbyHistoryItem {
   mediaType: 'movie' | 'tv';
   /** 剧集优先用本集剧照，缺省回退剧封面 */
   posterUrl: string | null;
+  /** 16:9 背景缩略图（Backdrop；供“观看记录”横图卡使用，无则前端回退 posterUrl） */
+  thumbnailUrl: string | null;
   year: number | null;
   /** 观看完成时间（Emby LastPlayedDate 原值，ISO 字符串） */
   watchedDate: string | null;
@@ -497,6 +499,7 @@ interface HistoryRawItem {
   ParentIndexNumber?: number;
   IndexNumber?: number;
   ImageTags?: { Primary?: string };
+  BackdropImageTags?: string[];
   UserData?: { LastPlayedDate?: string };
 }
 
@@ -536,12 +539,23 @@ export async function getWatchHistory(limit = 30): Promise<EmbyHistoryItem[]> {
         : isEpisode && r.SeriesId
           ? `${cfg.baseUrl}/emby/Items/${encodeURIComponent(r.SeriesId)}/Images/Primary?maxWidth=342`
           : null;
+      // 16:9 缩略图：Backdrop 优先；剧集单集指向所属剧（无 tag 时置空由前端回退竖图）
+      const backdropTags = Array.isArray(r.BackdropImageTags) ? r.BackdropImageTags : [];
+      const backdropItemId =
+        isEpisode && r.SeriesId ? (r.SeriesId as string) : (r.Id as string);
+      const thumbnailUrl =
+        backdropTags.length > 0 || !isEpisode
+          ? `${cfg.baseUrl}/emby/Items/${encodeURIComponent(backdropItemId)}/Images/Backdrop?maxWidth=960${
+              backdropTags[0] ? `&tag=${encodeURIComponent(backdropTags[0])}` : ''
+            }`
+          : null;
       return {
         itemId: r.Id as string,
         title,
         seriesName: isEpisode ? (r.SeriesName ?? null) : null,
         mediaType: isEpisode ? ('tv' as const) : ('movie' as const),
         posterUrl,
+        thumbnailUrl,
         year: typeof r.ProductionYear === 'number' ? r.ProductionYear : null,
         watchedDate: r.UserData?.LastPlayedDate ?? null,
       };

@@ -137,6 +137,8 @@ export interface EmbyHistoryItem {
   seriesName: string | null;
   mediaType: MediaType;
   posterUrl: string | null;
+  /** 16:9 背景缩略图（观看记录横图卡用；无则回退 posterUrl） */
+  thumbnailUrl: string | null;
   year: number | null;
   watchedDate: string | null;
 }

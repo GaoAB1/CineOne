@@ -81,6 +81,44 @@ export function fetchHome(window: 'day' | 'week' = 'week'): Promise<{ sections: 
   return request('/tmdb/home', { query: { window } });
 }
 
+// ---- tmdb 流媒体平台分组 ----
+
+export interface ProviderEntry {
+  key: string;
+  id: number;
+  name: string;
+  logoPath: string | null;
+}
+
+export interface ProviderRegionGroup {
+  key: 'us' | 'cn';
+  label: string;
+  providers: ProviderEntry[];
+}
+
+export interface ProviderPagePayload {
+  page: number;
+  totalPages: number;
+  results: MediaItem[];
+}
+
+/** 首页平台入口卡数据（美区/国区） */
+export function fetchProviderRegions(): Promise<{ regions: ProviderRegionGroup[] }> {
+  return request('/tmdb/providers');
+}
+
+/** 平台条目分页（浏览页） */
+export function fetchProviderItems(opts: {
+  region: 'us' | 'cn';
+  providerId: number;
+  type: MediaType;
+  page: number;
+}): Promise<ProviderPagePayload> {
+  return request('/tmdb/providers/items', {
+    query: { region: opts.region, provider_id: opts.providerId, type: opts.type, page: opts.page },
+  });
+}
+
 export interface SearchResult {
   page: number;
   results: MediaItem[];
