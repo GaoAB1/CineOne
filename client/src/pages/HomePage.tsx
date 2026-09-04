@@ -1,5 +1,5 @@
 /**
- * 主页：Hero 精选区（每周热门第 1 项）+ 四大分区卡片流 + 骨架屏加载态。
+ * 主页：Apple TV 风格滚动海报精选区 + 四大分区卡片流 + 骨架屏加载态。
  */
 
 import { useEffect, useState } from 'react';
@@ -12,11 +12,11 @@ import Hero from '../components/media/Hero';
 import GlassPanel from '../components/ui/GlassPanel';
 import Button from '../components/ui/Button';
 
-/** 加载骨架：Hero 块 + 分区标题条 + 6 张海报骨架，全部 shimmer */
+/** 加载骨架：滚动海报精选区 + 分区标题条 + 6 张海报骨架，全部 shimmer */
 function HomeSkeleton() {
   return (
     <div aria-busy="true" aria-label="正在加载首页内容">
-      <div className="skeleton-shimmer mb-6" style={{ borderRadius: 'var(--radius-lg)', aspectRatio: '21 / 9' }} />
+      <div className="skeleton-shimmer mb-6" style={{ borderRadius: 'var(--radius-lg)', minHeight: '500px' }} />
       {[0, 1].map((row) => (
         <div key={row} className="mb-6">
           <div className="skeleton-shimmer mb-3 h-4 w-[120px]" style={{ borderRadius: 'var(--radius-sm)' }} />
