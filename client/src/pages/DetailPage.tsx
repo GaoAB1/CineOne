@@ -47,9 +47,6 @@ const STATUS_OPTIONS: Array<{ value: WatchStatus; label: string }> = [
   { value: 'dropped', label: '弃剧' },
 ];
 
-/** BT 资源站 1lou（壹楼）搜索入口：/search-<urlencode(关键词)>.htm */
-const RESOURCE_SEARCH_BASE = 'https://1lou.cc/search-';
-
 export default function DetailPage() {
   const params = useParams<{ type: string; id: string }>();
   const navigate = useNavigate();
@@ -83,16 +80,16 @@ export default function DetailPage() {
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
 
-  // ---- 查找资源：在 1lou.cc 直接按影视名称搜索 ----
-  const resourceSearchHref = useMemo(() => {
+  // ---- 查找资源：跳转站内资源搜索结果页 ----
+  const resourceSearchPath = useMemo(() => {
     const keyword = detail?.title?.trim();
     if (!keyword) return null;
-    return `${RESOURCE_SEARCH_BASE}${encodeURIComponent(keyword)}.htm`;
+    return `/resources?q=${encodeURIComponent(keyword)}`;
   }, [detail]);
 
   const runResourceLookup = (): void => {
-    if (!resourceSearchHref) return;
-    window.open(resourceSearchHref, '_blank', 'noreferrer');
+    if (!resourceSearchPath) return;
+    navigate(resourceSearchPath);
   };
 
   // ---- 详情加载 ----
@@ -514,8 +511,8 @@ export default function DetailPage() {
           <Button
             variant="tinted"
             icon={<i className="ri-search-line" aria-hidden />}
-            disabled={!resourceSearchHref}
-            title={`在 1lou.cc 搜索「${detail.title}」相关资源`}
+            disabled={!resourceSearchPath}
+            title={`在站内检索「${detail.title}」的片源`}
             onClick={runResourceLookup}
           >
             查找资源

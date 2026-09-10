@@ -137,6 +137,31 @@ export function searchMedia(q: string, page = 1): Promise<SearchResult> {
   return request('/tmdb/search', { query: { q, page } });
 }
 
+// ---- 资源搜索（1lou 聚合，站内展示） ----
+
+export interface ResourceItem {
+  tid: string;
+  title: string;
+  url: string;
+  tags: string[];
+  author: string | null;
+  date: string | null;
+  views: number | null;
+  comments: number | null;
+}
+
+export interface ResourceSearchResult {
+  keyword: string;
+  page: number;
+  totalPages: number;
+  items: ResourceItem[];
+  cached: boolean;
+}
+
+export function searchResources(q: string, page = 1): Promise<ResourceSearchResult> {
+  return request('/resources/search', { query: { q, page } });
+}
+
 export function fetchDetail(type: MediaType, id: number): Promise<DetailPayload> {
   return request(`/tmdb/detail/${type}/${id}`);
 }
