@@ -17,7 +17,6 @@ import {
   deleteUpcoming,
   fetchMoviepilotSubscribed,
   subscribeMoviepilot,
-  resolveDoubanLink,
 } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { DetailPayload, MediaType, SeasonSnapshotEntry, WatchStatus } from '../api/types';
@@ -48,11 +47,8 @@ const STATUS_OPTIONS: Array<{ value: WatchStatus; label: string }> = [
   { value: 'dropped', label: '弃剧' },
 ];
 
-/** 第三方资源解析站：接收豆瓣条目链接（?url= 预填）并解析磁力/网盘资源 */
-const RESOURCE_PARSER_BASE = 'https://www.filmparser.xyz/';
-
-/** 仅认豆瓣条目页形态的链接，避免把聚合接口自身地址误当豆瓣链接 */
-const DOUBAN_SUBJECT_RE = /^https?:\/\/(?:www\.)?movie\.douban\.com\/subject\/\d+\/?(?:\?.*)?$/i;
+/** BT 资源站 1lou（壹楼）搜索入口：/search-<urlencode(关键词)>.htm */
+const RESOURCE_SEARCH_BASE = 'https://1lou.cc/search-';
 
 export default function DetailPage() {
   const params = useParams<{ type: string; id: string }>();
@@ -84,73 +80,19 @@ export default function DetailPage() {
   const [mpBusy, setMpBusy] = useState(false);
   const [mpToast, setMpToast] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // 查找资源：豆瓣直查 loading 与反馈文案（href 为手动兜底链接）
-  const [lookupBusy, setLookupBusy] = useState(false);
-  const [lookupMsg, setLookupMsg] = useState<{ ok: boolean; text: string; href?: string } | null>(null);
-
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
 
-  // ---- 查找资源：把该片豆瓣条目链接预填到 filmparser 解析页 ----
-  // 优先取评分聚合接口（douban_api_base）回填的 douban.sourceUrl；
-  // 拿不到（未配置/该源暂无数据）时点按钮会经 /douban/resolve 反查豆瓣。
-  const doubanSubjectUrl = useMemo(() => {
-    const url = ratingsState?.ratings?.douban?.sourceUrl;
-    return url && DOUBAN_SUBJECT_RE.test(url) ? url : null;
-  }, [ratingsState]);
-  const resourceLookupHref = doubanSubjectUrl
-    ? `${RESOURCE_PARSER_BASE}?url=${encodeURIComponent(doubanSubjectUrl)}`
-    : null;
+  // ---- 查找资源：在 1lou.cc 直接按影视名称搜索 ----
+  const resourceSearchHref = useMemo(() => {
+    const keyword = detail?.title?.trim();
+    if (!keyword) return null;
+    return `${RESOURCE_SEARCH_BASE}${encodeURIComponent(keyword)}.htm`;
+  }, [detail]);
 
-  // ---- 查找资源动作 ----
-  const runResourceLookup = async (): Promise<void> => {
-    if (!detail || !mediaType || !Number.isInteger(tmdbId)) return;
-    // 已有豆瓣条目链接（评分聚合回填）→ 直接跳解析站，不再外呼豆瓣
-    if (resourceLookupHref) {
-      window.open(resourceLookupHref, '_blank', 'noreferrer');
-      return;
-    }
-    setLookupBusy(true);
-    setLookupMsg(null);
-    try {
-      const parsedYear = detail.releaseDate
-        ? Number.parseInt(detail.releaseDate.slice(0, 4), 10)
-        : NaN;
-      const res = await resolveDoubanLink(
-        mediaType,
-        tmdbId,
-        detail.title,
-        Number.isInteger(parsedYear) ? parsedYear : undefined,
-      );
-      if (res.subjectUrl) {
-        const href = `${RESOURCE_PARSER_BASE}?url=${encodeURIComponent(res.subjectUrl)}`;
-        window.open(href, '_blank', 'noreferrer');
-        setLookupMsg({
-          ok: true,
-          text: `已定位豆瓣条目「${res.title ?? detail.title}${res.year ? `（${res.year}）` : ''}」，已在解析页打开。`,
-        });
-      } else if (res.disabled) {
-        setLookupMsg({ ok: false, text: '豆瓣直查未启用（服务端 douban_search_enabled=0）' });
-      } else if (res.degraded) {
-        setLookupMsg({
-          ok: false,
-          text: '豆瓣反查失败（可能被限流或要求验证码），请稍后再试。',
-        });
-      } else {
-        setLookupMsg({
-          ok: false,
-          text: `豆瓣未找到「${detail.title}」的匹配条目。`,
-          href: `https://www.douban.com/search?q=${encodeURIComponent(detail.title)}`,
-        });
-      }
-    } catch (err) {
-      setLookupMsg({
-        ok: false,
-        text: err instanceof ApiClientError ? err.message : '豆瓣反查失败',
-      });
-    } finally {
-      setLookupBusy(false);
-    }
+  const runResourceLookup = (): void => {
+    if (!resourceSearchHref) return;
+    window.open(resourceSearchHref, '_blank', 'noreferrer');
   };
 
   // ---- 详情加载 ----
@@ -572,35 +514,13 @@ export default function DetailPage() {
           <Button
             variant="tinted"
             icon={<i className="ri-search-line" aria-hidden />}
-            loading={lookupBusy}
-            title="在解析站查找该片资源（无聚合豆瓣链接时自动反查豆瓣）"
-            onClick={() => void runResourceLookup()}
+            disabled={!resourceSearchHref}
+            title={`在 1lou.cc 搜索「${detail.title}」相关资源`}
+            onClick={runResourceLookup}
           >
             查找资源
           </Button>
         </div>
-        {lookupMsg && (
-          <p
-            className="-mt-2 mb-4 type-caption"
-            style={{ color: lookupMsg.ok ? 'var(--text-secondary)' : 'var(--color-danger)' }}
-          >
-            {lookupMsg.text}
-            {lookupMsg.href && (
-              <>
-                {' '}
-                <a
-                  className="underline"
-                  href={lookupMsg.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: 'var(--color-accent)' }}
-                >
-                  打开豆瓣搜索页
-                </a>
-              </>
-            )}
-          </p>
-        )}
         {!watchEntry ? (
           <div className="flex flex-wrap items-center gap-3">
             {isUnreleased ? (
