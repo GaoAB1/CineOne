@@ -35,6 +35,22 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   douban_search_enabled: '1',
   /** 默认主题偏好 */
   theme_default: 'dark',
+  /** qBittorrent WebUI 地址（如 http://192.168.1.10:8080；空串表示未配置） */
+  qb_server_url: '',
+  /** qBittorrent WebUI 用户名（留空表示免认证环境，跳过登录） */
+  qb_username: '',
+  /** qBittorrent WebUI 密码 */
+  qb_password: '',
+  /** 电影默认下载目录（下载弹窗按“电影”类型预选） */
+  qb_save_path_movie: '',
+  /** 剧集默认下载目录（下载弹窗按“剧集”类型预选） */
+  qb_save_path_tv: '',
+  /** 预设下载目录列表（每行一个，下载弹窗下拉选择） */
+  qb_save_paths: '',
+  /** 电影任务分类（qB 分类名，留空则不设置） */
+  qb_category_movie: '',
+  /** 剧集任务分类（qB 分类名，留空则不设置） */
+  qb_category_tv: '',
 };
 
 export function runSeed(): void {

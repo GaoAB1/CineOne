@@ -6,11 +6,20 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { searchResources, type ResourceItem } from '../api/endpoints';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  fetchQbPaths,
+  fetchQbStatus,
+  pushResourceDownload,
+  searchResources,
+  type QbPaths,
+  type ResourceItem,
+} from '../api/endpoints';
 import { ApiClientError } from '../api/http';
+import type { MediaType } from '../api/types';
 import Button from '../components/ui/Button';
 import GlassPanel from '../components/ui/GlassPanel';
+import SegmentedControl from '../components/ui/SegmentedControl';
 import Spinner from '../components/ui/Spinner';
 
 const SITE_BASE = 'https://1lou.cc';
@@ -42,6 +51,69 @@ export default function ResourceSearchPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+
+  // ---- 推送到 qBittorrent ----
+  const [qbPaths, setQbPaths] = useState<QbPaths | null>(null);
+  const [qbReady, setQbReady] = useState<boolean | null>(null);
+  const [downloadTarget, setDownloadTarget] = useState<ResourceItem | null>(null);
+  const defaultType: MediaType = searchParams.get('type') === 'tv' ? 'tv' : 'movie';
+  const [dlType, setDlType] = useState<MediaType>(defaultType);
+  const [dlPath, setDlPath] = useState('');
+  const [dlBusy, setDlBusy] = useState(false);
+  const [dlMsg, setDlMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([fetchQbPaths().catch(() => null), fetchQbStatus().catch(() => null)])
+      .then(([paths, status]) => {
+        if (cancelled) return;
+        if (paths) setQbPaths(paths);
+        setQbReady(status ? status.configured && status.reachable : false);
+      })
+      .catch(() => {
+        if (!cancelled) setQbReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pathForType = useCallback(
+    (type: MediaType): string => {
+      if (!qbPaths) return '';
+      return type === 'tv' ? qbPaths.tvPath : qbPaths.moviePath;
+    },
+    [qbPaths],
+  );
+
+  const openDownload = (item: ResourceItem): void => {
+    setDownloadTarget(item);
+    setDlMsg(null);
+    setDlType(defaultType);
+    setDlPath(pathForType(defaultType) || qbPaths?.defaultSavePath || '');
+  };
+
+  const submitDownload = async (): Promise<void> => {
+    if (!downloadTarget) return;
+    setDlBusy(true);
+    setDlMsg(null);
+    try {
+      const res = await pushResourceDownload({
+        tid: downloadTarget.tid,
+        type: dlType,
+        savePath: dlPath.trim() || undefined,
+      });
+      setDlMsg({
+        ok: true,
+        text: `已推送到 qBittorrent：${res.name}${res.savePath ? ` → ${res.savePath}` : ''}`,
+      });
+      setDownloadTarget(null);
+    } catch (err) {
+      setDlMsg({ ok: false, text: err instanceof ApiClientError ? err.message : '推送下载失败' });
+    } finally {
+      setDlBusy(false);
+    }
+  };
 
   useEffect(() => {
     setInput(keyword);
@@ -205,6 +277,22 @@ export default function ResourceSearchPage() {
       {/* 结果区 */}
       {!loading && items.length > 0 && (
         <>
+          {dlMsg && (
+            <p
+              className="type-caption mb-3"
+              style={{ color: dlMsg.ok ? 'var(--color-success)' : 'var(--color-danger)' }}
+            >
+              {dlMsg.text}
+              {dlMsg.ok && (
+                <>
+                  {' '}
+                  <Link className="underline" to="/downloads" style={{ color: 'var(--color-accent)' }}>
+                    查看下载
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
           <div className="mb-3 flex items-center gap-2">
             <p className="type-caption text-txt-tertiary">
               「{keyword}」共 {items.length} 条结果
@@ -256,15 +344,25 @@ export default function ResourceSearchPage() {
                       <p className="type-caption mt-2 text-txt-tertiary">{metaLine(item)}</p>
                     </div>
 
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="press-spring flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-sm border border-line px-3 text-[13px] font-medium text-txt-secondary transition-colors duration-fast ease-out hover:text-txt-primary"
-                    >
-                      原帖
-                      <i className="ri-external-link-line text-[14px]" aria-hidden />
-                    </a>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        variant="filled"
+                        className="!min-h-[40px] !px-3 text-[13px]"
+                        icon={<i className="ri-download-2-line text-[15px]" aria-hidden />}
+                        onClick={() => openDownload(item)}
+                      >
+                        下载
+                      </Button>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="press-spring flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-sm border border-line px-3 text-[13px] font-medium text-txt-secondary transition-colors duration-fast ease-out hover:text-txt-primary"
+                      >
+                        原帖
+                        <i className="ri-external-link-line text-[14px]" aria-hidden />
+                      </a>
+                    </div>
                   </div>
                 </GlassPanel>
               </li>
@@ -279,6 +377,118 @@ export default function ResourceSearchPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* 下载推送到 qBittorrent 弹层 */}
+      {downloadTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'var(--scrim-hero, rgba(0,0,0,0.5))' }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="推送下载到 qBittorrent"
+        >
+          <GlassPanel className="w-full max-w-[520px] p-5" bordered>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="type-headline">推送到 qBittorrent</h2>
+                <p className="type-caption mt-1 line-clamp-2 text-txt-tertiary" title={downloadTarget.title}>
+                  {downloadTarget.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setDownloadTarget(null)}
+                className="press-spring flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-txt-tertiary hover:text-txt-primary"
+              >
+                <i className="ri-close-line text-[18px]" aria-hidden />
+              </button>
+            </div>
+
+            {qbReady === false ? (
+              <div className="py-2">
+                <p className="type-caption" style={{ color: 'var(--color-danger)' }}>
+                  qBittorrent 未配置或不可达，请先在设置中完成下载器配置。
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="gray" onClick={() => setDownloadTarget(null)}>
+                    关闭
+                  </Button>
+                  <Link to="/settings">
+                    <Button variant="filled">前往设置</Button>
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <p className="type-caption mb-2 text-txt-secondary">媒体类型（决定默认下载目录）</p>
+                    <SegmentedControl<MediaType>
+                      options={[
+                        { value: 'movie', label: '电影' },
+                        { value: 'tv', label: '剧集' },
+                      ]}
+                      value={dlType}
+                      onChange={(next) => {
+                        setDlType(next);
+                        setDlPath(pathForType(next) || qbPaths?.defaultSavePath || '');
+                      }}
+                      ariaLabel="媒体类型"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="type-caption mb-1 block text-txt-secondary">保存位置</label>
+                    {qbPaths && qbPaths.presetPaths.length > 0 && (
+                      <select
+                        value={qbPaths.presetPaths.includes(dlPath) ? dlPath : ''}
+                        onChange={(e) => {
+                          if (e.target.value) setDlPath(e.target.value);
+                        }}
+                        aria-label="预设下载目录"
+                        className="mb-2 h-[40px] w-full rounded-sm border border-line bg-card px-3 text-[14px] text-txt-primary outline-none focus:border-accent"
+                      >
+                        <option value="">选择预设目录…</option>
+                        {qbPaths.presetPaths.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <input
+                      value={dlPath}
+                      onChange={(e) => setDlPath(e.target.value)}
+                      placeholder={qbPaths?.defaultSavePath ?? '/downloads/movies'}
+                      aria-label="下载保存目录"
+                      className="h-11 w-full rounded-md border border-line bg-card px-3 text-[15px] text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent focus:shadow-[var(--focus-ring)]"
+                    />
+                    <p className="type-caption mt-1 text-txt-tertiary">
+                      留空则使用 qBittorrent 默认目录；电影/剧集目录可在设置中预设。
+                    </p>
+                  </div>
+                </div>
+
+                {dlMsg && !dlMsg.ok && (
+                  <p className="type-caption mt-3" style={{ color: 'var(--color-danger)' }}>
+                    {dlMsg.text}
+                  </p>
+                )}
+
+                <div className="mt-5 flex justify-end gap-2">
+                  <Button variant="gray" onClick={() => setDownloadTarget(null)}>
+                    取消
+                  </Button>
+                  <Button variant="filled" loading={dlBusy} onClick={() => void submitDownload()}>
+                    推送下载
+                  </Button>
+                </div>
+              </>
+            )}
+          </GlassPanel>
+        </div>
       )}
     </div>
   );

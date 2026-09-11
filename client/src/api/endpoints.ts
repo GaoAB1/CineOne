@@ -61,6 +61,16 @@ export interface SettingsView {
   tmdb_api_key_set: boolean;
   ratings_ttl_hours: number;
   theme_default: string;
+  // qBittorrent（下载器）
+  qb_server_url: string;
+  qb_username: string;
+  qb_password_masked: string;
+  qb_password_set: boolean;
+  qb_save_path_movie: string;
+  qb_save_path_tv: string;
+  qb_save_paths: string;
+  qb_category_movie: string;
+  qb_category_tv: string;
 }
 
 export function fetchSettings(): Promise<SettingsView> {
@@ -160,6 +170,89 @@ export interface ResourceSearchResult {
 
 export function searchResources(q: string, page = 1): Promise<ResourceSearchResult> {
   return request('/resources/search', { query: { q, page } });
+}
+
+/** 一键推送资源到 qBittorrent 下载 */
+export interface PushDownloadResult {
+  pushed: boolean;
+  name: string;
+  savePath: string | null;
+  category: string | null;
+  threadUrl: string;
+}
+
+export function pushResourceDownload(opts: {
+  tid: string;
+  type: 'movie' | 'tv';
+  savePath?: string;
+  category?: string;
+}): Promise<PushDownloadResult> {
+  return request('/resources/download', {
+    method: 'POST',
+    body: { tid: opts.tid, type: opts.type, save_path: opts.savePath, category: opts.category },
+  });
+}
+
+// ---- qBittorrent ----
+
+export interface QbStatus {
+  configured: boolean;
+  reachable: boolean;
+  version: string | null;
+  defaultSavePath: string | null;
+  authMode: 'anonymous' | 'account';
+  error: string | null;
+}
+
+export interface QbTorrent {
+  hash: string;
+  name: string;
+  size: number;
+  progress: number;
+  dlspeed: number;
+  upspeed: number;
+  state: string;
+  eta: number;
+  savePath: string;
+  category: string;
+  addedOn: number;
+  numSeeds: number;
+  numLeeches: number;
+  downloaded: number;
+  uploaded: number;
+}
+
+export interface QbPaths {
+  defaultSavePath: string | null;
+  presetPaths: string[];
+  moviePath: string;
+  tvPath: string;
+  movieCategory: string;
+  tvCategory: string;
+}
+
+export function fetchQbStatus(): Promise<QbStatus> {
+  return request('/qb/status');
+}
+
+export function fetchQbTorrents(): Promise<{ torrents: QbTorrent[] }> {
+  return request('/qb/torrents');
+}
+
+export function fetchQbPaths(): Promise<QbPaths> {
+  return request('/qb/paths');
+}
+
+export function qbPause(hashes: string): Promise<{ paused: boolean }> {
+  return request('/qb/pause', { method: 'POST', body: { hashes } });
+}
+
+export function qbResume(hashes: string): Promise<{ resumed: boolean }> {
+  return request('/qb/resume', { method: 'POST', body: { hashes } });
+}
+
+export function qbDelete(hashes: string, deleteFiles = false): Promise<{ deleted: boolean }> {
+  return request('/qb/delete', { method: 'POST', body: { hashes, delete_files: deleteFiles } });
 }
 
 export function fetchDetail(type: MediaType, id: number): Promise<DetailPayload> {

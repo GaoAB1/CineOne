@@ -80,12 +80,13 @@ export default function DetailPage() {
   const isAdmin = user?.role === 'admin';
   const ratingsState = useRatings(mediaType ?? 'movie', Number.isInteger(tmdbId) ? tmdbId : 0);
 
-  // ---- 查找资源：跳转站内资源搜索结果页 ----
+  // ---- 查找资源：跳转站内资源搜索结果页（带类型，供下载目录预选） ----
   const resourceSearchPath = useMemo(() => {
     const keyword = detail?.title?.trim();
     if (!keyword) return null;
-    return `/resources?q=${encodeURIComponent(keyword)}`;
-  }, [detail]);
+    const typeParam = mediaType ? `&type=${mediaType}` : '';
+    return `/resources?q=${encodeURIComponent(keyword)}${typeParam}`;
+  }, [detail, mediaType]);
 
   const runResourceLookup = (): void => {
     if (!resourceSearchPath) return;

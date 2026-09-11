@@ -121,7 +121,97 @@ const inflight = new Map<string, Promise<ResourceSearchResult>>();
 export function clearResourceCache(): void {
   cache.clear();
   inflight.clear();
+  attachmentCache.clear();
 }
+
+// ---- 帖子附件（.torrent）解析与下载 ----
+
+export interface ResourceAttachment {
+  aid: string;
+  filename: string;
+  url: string;
+}
+
+export interface TorrentFile {
+  filename: string;
+  data: Uint8Array;
+}
+
+const THREAD_TIMEOUT_MS = 20_000;
+const ATTACH_TIMEOUT_MS = 60_000;
+const attachmentCache = new Map<string, { ts: number; items: ResourceAttachment[] }>();
+
+/**
+ * 解析帖子页「上传的附件」区块，提取 .torrent 附件（1lou 无磁力，只提供种子文件）。
+ * 结构：<li aid="2995163"><a href="attach-download-2995163.htm"><i class="...torrent"></i>名字.torrent</a></li>
+ */
+export function parseThreadAttachments(html: string): ResourceAttachment[] {
+  const items: ResourceAttachment[] = [];
+  const re = /<li aid="(\d+)"[\s\S]*?<a href="(attach-download-\d+\.htm)"[^>]*>([\s\S]*?)<\/a>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const aid = m[1];
+    const href = m[2];
+    const filename = decodeEntities(m[3]);
+    if (!filename) continue;
+    if (!/\.torrent$/i.test(filename)) continue;
+    items.push({ aid, filename, url: `${SITE_BASE}/${href}` });
+  }
+  return items;
+}
+
+/** 抓取帖子页并解析种子附件（30 分钟缓存） */
+export async function fetchThreadAttachments(tid: string): Promise<ResourceAttachment[]> {
+  const cached = attachmentCache.get(tid);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.items;
+
+  const url = `${SITE_BASE}/thread-${encodeURIComponent(tid)}.htm`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      signal: AbortSignal.timeout(THREAD_TIMEOUT_MS),
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/html,application/xhtml+xml',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      },
+    });
+  } catch {
+    throw new ApiError(2005, '抓取资源帖子超时，请稍后重试', 504);
+  }
+  if (!res.ok) throw new ApiError(2005, `抓取资源帖子失败（HTTP ${res.status}）`, 502);
+
+  const items = parseThreadAttachments(await res.text());
+  attachmentCache.set(tid, { ts: Date.now(), items });
+  return items;
+}
+
+/** 下载种子文件（校验 bencode 头，避免把登录/权限提示页当种子返回） */
+export async function downloadTorrent(attachment: ResourceAttachment): Promise<TorrentFile> {
+  let res: Response;
+  try {
+    res = await fetch(attachment.url, {
+      signal: AbortSignal.timeout(ATTACH_TIMEOUT_MS),
+      headers: {
+        'User-Agent': UA,
+        Accept: '*/*',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      },
+    });
+  } catch {
+    throw new ApiError(2005, '下载种子文件超时，请稍后重试', 504);
+  }
+  if (!res.ok) throw new ApiError(2005, `下载种子文件失败（HTTP ${res.status}）`, 502);
+
+  const buf = new Uint8Array(await res.arrayBuffer());
+  const head = Buffer.from(buf.slice(0, 16)).toString('latin1');
+  // 合法 torrent 为 bencode 字典（以 d 开头，通常 d8:announce）
+  if (!head.startsWith('d') || buf.length < 30) {
+    throw new ApiError(2005, '未获取到有效的种子文件（源站可能要求登录）', 502);
+  }
+  return { filename: attachment.filename, data: buf };
+}
+
 
 async function fetchSearchPage(keyword: string, page: number): Promise<ResourceSearchResult> {
   const url = buildSearchUrl(keyword, page);

@@ -100,5 +100,20 @@ export function getSettingsView(): Record<string, unknown> {
     ratings_ttl_hours: Number.parseInt(getSetting('ratings_ttl_hours'), 10) || 72,
     douban_search_enabled: getSetting('douban_search_enabled') === '1',
     theme_default: getSetting('theme_default') || 'dark',
+    // qBittorrent：地址/用户名/路径均非密钥回显明文；密码只给打码与 set 标志
+    qb_server_url: getSetting('qb_server_url').trim(),
+    qb_username: getSetting('qb_username').trim(),
+    qb_password_masked: maskApiKey(getSetting('qb_password')),
+    qb_password_set: getSetting('qb_password').trim().length > 0,
+    qb_save_path_movie: getSetting('qb_save_path_movie').trim(),
+    qb_save_path_tv: getSetting('qb_save_path_tv').trim(),
+    qb_save_paths: getSetting('qb_save_paths'),
+    qb_category_movie: getSetting('qb_category_movie').trim(),
+    qb_category_tv: getSetting('qb_category_tv').trim(),
   };
+}
+
+/** qBittorrent 是否已配置（地址非空） */
+export function hasQbConfig(): boolean {
+  return getSetting('qb_server_url').trim().length > 0;
 }

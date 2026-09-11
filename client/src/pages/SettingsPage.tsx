@@ -13,17 +13,19 @@ import GlassPanel from '../components/ui/GlassPanel';
 import Spinner from '../components/ui/Spinner';
 import EmbySection from '../components/settings/EmbySection';
 import MoviePilotSection from '../components/settings/MoviePilotSection';
+import QbittorrentSection from '../components/settings/QbittorrentSection';
 import ChangePasswordSection from '../components/settings/ChangePasswordSection';
 import UserManageSection from '../components/settings/UserManageSection';
 import { useAuth } from '../stores/AuthContext';
 import { useTheme } from '../stores/ThemeContext';
 
-type SettingsTab = 'media' | 'emby' | 'moviepilot' | 'account' | 'users';
+type SettingsTab = 'media' | 'emby' | 'moviepilot' | 'qb' | 'account' | 'users';
 
 const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
   { key: 'media', label: '媒体服务', icon: 'ri-key-2-line' },
   { key: 'emby', label: 'Emby', icon: 'ri-server-line' },
   { key: 'moviepilot', label: 'MoviePilot', icon: 'ri-download-cloud-2-line' },
+  { key: 'qb', label: '下载器', icon: 'ri-download-2-line' },
   { key: 'account', label: '账户', icon: 'ri-user-3-line' },
   { key: 'users', label: '用户管理', icon: 'ri-team-line' },
 ];
@@ -249,6 +251,8 @@ export default function SettingsPage() {
       {tab === 'emby' && <EmbySection />}
 
       {tab === 'moviepilot' && <MoviePilotSection />}
+
+      {tab === 'qb' && <QbittorrentSection />}
 
       {tab === 'account' && (
         <>

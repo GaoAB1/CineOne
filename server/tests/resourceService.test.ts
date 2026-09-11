@@ -11,7 +11,10 @@ import {
   buildSearchUrl,
   clearResourceCache,
   decodeEntities,
+  downloadTorrent,
+  fetchThreadAttachments,
   parseSearchHtml,
+  parseThreadAttachments,
   searchResources,
 } from '../src/services/resourceService';
 
@@ -64,7 +67,14 @@ const FIXTURE = `
 
 const originalFetch = globalThis.fetch;
 let fetchCount = 0;
-let fetchHandler: (() => { ok: boolean; status?: number; text: () => Promise<string> }) | null = null;
+let fetchHandler:
+  | (() => {
+      ok: boolean;
+      status?: number;
+      text?: () => Promise<string>;
+      arrayBuffer?: () => Promise<ArrayBuffer>;
+    })
+  | null = null;
 
 before(() => {
   globalThis.fetch = (async () => {
@@ -171,5 +181,80 @@ describe('resourceService 搜索与缓存', () => {
       () => searchResources('任意'),
       (err: { code?: number }) => err.code === 2003,
     );
+  });
+});
+
+/** 帖子页附件区块 fixture：1 个 .torrent + 1 个非种子附件 */
+const THREAD_FIXTURE = `
+<fieldset class="fieldset">
+<legend>上传的附件：</legend>
+<ul class="attachlist">
+<li aid="2995163">
+  <a href="attach-download-2995163.htm" target="_blank">
+   <i class="icon filetype torrent"></i>
+   撒哈拉[国语音轨+中英字幕].Sahara.2005.BluRay.1080p&amp;DTS 15.10GB[1lou.me].torrent
+  </a>
+</li>
+<li aid="2995164">
+  <a href="attach-download-2995164.htm" target="_blank">
+   <i class="icon filetype image"></i>
+   poster.jpg
+  </a>
+</li>
+</ul>
+</fieldset>
+`;
+
+describe('resourceService 帖子附件与种子', () => {
+  it('parseThreadAttachments 仅提取 .torrent 附件并解码实体', () => {
+    const items = parseThreadAttachments(THREAD_FIXTURE);
+    assert.equal(items.length, 1, '非 .torrent 附件应被过滤');
+    assert.equal(items[0].aid, '2995163');
+    assert.equal(items[0].url, 'https://1lou.cc/attach-download-2995163.htm');
+    assert.ok(items[0].filename.endsWith('.torrent'));
+    assert.ok(items[0].filename.includes('&DTS'), '实体应被解码');
+  });
+
+  it('fetchThreadAttachments 结果走缓存（同 tid 只抓一次）', async () => {
+    clearResourceCache();
+    fetchCount = 0;
+    fetchHandler = () => ({ ok: true, text: async () => THREAD_FIXTURE });
+
+    const first = await fetchThreadAttachments('1018487');
+    assert.equal(first.length, 1);
+    assert.equal(fetchCount, 1);
+
+    const second = await fetchThreadAttachments('1018487');
+    assert.equal(second.length, 1);
+    assert.equal(fetchCount, 1, '命中缓存不应再次抓取');
+  });
+
+  it('downloadTorrent 校验 bencode 头：非种子内容抛 2005', async () => {
+    fetchHandler = () => ({
+      ok: true,
+      arrayBuffer: async () => new TextEncoder().encode('<html>请先登录</html>').buffer as ArrayBuffer,
+    });
+    await assert.rejects(
+      () =>
+        downloadTorrent({
+          aid: '1',
+          filename: 'x.torrent',
+          url: 'https://1lou.cc/attach-download-1.htm',
+        }),
+      (err: { code?: number; message?: string }) =>
+        err.code === 2005 && String(err.message).includes('有效的种子文件'),
+    );
+  });
+
+  it('downloadTorrent 正常返回种子字节与文件名', async () => {
+    const payload = new TextEncoder().encode('d8:announce39:http://tracker.example/announce');
+    fetchHandler = () => ({ ok: true, arrayBuffer: async () => payload.buffer as ArrayBuffer });
+    const file = await downloadTorrent({
+      aid: '2995163',
+      filename: 'demo.torrent',
+      url: 'https://1lou.cc/attach-download-2995163.htm',
+    });
+    assert.equal(file.filename, 'demo.torrent');
+    assert.ok(file.data.length > 20);
   });
 });

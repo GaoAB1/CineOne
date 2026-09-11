@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/', label: '首页', iconLine: 'ri-home-5-line', iconFill: 'ri-home-5-fill' },
   { to: '/library', label: '媒体库', iconLine: 'ri-film-line', iconFill: 'ri-film-fill' },
   { to: '/watchlist', label: '追剧', iconLine: 'ri-tv-2-line', iconFill: 'ri-tv-2-fill' },
+  { to: '/downloads', label: '下载', iconLine: 'ri-download-2-line', iconFill: 'ri-download-2-fill' },
   { to: '/search', label: '搜索', iconLine: 'ri-search-line', iconFill: 'ri-search-fill' },
 ];
 
@@ -32,7 +33,7 @@ export default function TabBar() {
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `press-spring flex min-h-[52px] min-w-[60px] flex-col items-center justify-center gap-0.5 rounded-pill px-2 transition-colors duration-fast ease-out ${
+              `press-spring flex min-h-[52px] min-w-[54px] flex-col items-center justify-center gap-0.5 rounded-pill px-2 transition-colors duration-fast ease-out ${
                 isActive ? '' : 'text-txt-secondary hover:text-txt-primary'
               }`
             }

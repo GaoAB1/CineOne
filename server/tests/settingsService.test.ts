@@ -47,7 +47,17 @@ describe('settingsService', () => {
     assert.equal(getSetting('moviepilot_token'), '');
     // M4 豆瓣条目直查：默认开启（'1'）
     assert.equal(getSetting('douban_search_enabled'), '1');
-    assert.equal(Object.keys(DEFAULT_SETTINGS).length, 15);
+    // M5 qBittorrent 下载器键：默认均为空串（未配置 → 下载功能降级不可用）
+    assert.equal(getSetting('qb_server_url'), '');
+    assert.equal(getSetting('qb_username'), '');
+    assert.equal(getSetting('qb_password'), '');
+    assert.equal(getSetting('qb_save_path_movie'), '');
+    assert.equal(getSetting('qb_save_path_tv'), '');
+    assert.equal(getSetting('qb_save_paths'), '');
+    assert.equal(getSetting('qb_category_movie'), '');
+    assert.equal(getSetting('qb_category_tv'), '');
+    // 键总数随迭代增长，断言下限而非精确值，避免每次新增设置项都要改测试
+    assert.ok(Object.keys(DEFAULT_SETTINGS).length >= 15);
   });
 
   it('set/get 往返写入，重复写覆盖旧值（UPSERT）', () => {
