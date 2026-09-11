@@ -14,6 +14,7 @@ import {
   pushResourceDownload,
   searchResources,
   type HgemeResources,
+  type HgemeSearchMeta,
   type QbPaths,
   type ResourceItem,
   type ResourceSourceFilter,
@@ -25,6 +26,7 @@ import Button from '../components/ui/Button';
 import GlassPanel from '../components/ui/GlassPanel';
 import SegmentedControl from '../components/ui/SegmentedControl';
 import Spinner from '../components/ui/Spinner';
+import HgemeResults from '../components/media/HgemeResults';
 
 const SITE_BASE = 'https://1lou.cc';
 
@@ -69,6 +71,9 @@ export default function ResourceSearchPage() {
   const [searched, setSearched] = useState(false);
   const [source, setSource] = useState<ResourceSourceFilter>('all');
   const [sourceStatus, setSourceStatus] = useState<ResourceSourceStatus[]>([]);
+  const [hgType, setHgType] = useState(0);
+  const [hgFilter, setHgFilter] = useState('');
+  const [hgMeta, setHgMeta] = useState<HgemeSearchMeta | null>(null);
 
   // ---- 推送到 qBittorrent ----
   const [qbPaths, setQbPaths] = useState<QbPaths | null>(null);
@@ -189,22 +194,28 @@ export default function ResourceSearchPage() {
   }, [keyword]);
 
   const runSearch = useCallback(
-    async (kw: string, src: ResourceSourceFilter = 'all'): Promise<void> => {
+    async (
+      kw: string,
+      src: ResourceSourceFilter = 'all',
+      opts: { type?: number; filter?: string } = {},
+    ): Promise<void> => {
       setLoading(true);
       setError(null);
       setSearched(false);
       try {
-        const res = await searchResources(kw, 1, src);
+        const res = await searchResources(kw, 1, src, opts);
         setItems(res.items);
         setPage(res.page);
         setTotalPages(res.totalPages);
         setCached(res.cached);
         setSourceStatus(res.sources ?? []);
+        setHgMeta(res.hgeme ?? null);
         setSearched(true);
       } catch (err) {
         setError(err instanceof ApiClientError ? err.message : '资源检索失败');
         setItems([]);
         setSourceStatus([]);
+        setHgMeta(null);
       } finally {
         setLoading(false);
       }
@@ -218,10 +229,11 @@ export default function ResourceSearchPage() {
       setSearched(false);
       setError(null);
       setSourceStatus([]);
+      setHgMeta(null);
       return;
     }
-    void runSearch(keyword, source);
-  }, [keyword, source, runSearch]);
+    void runSearch(keyword, source, { type: hgType, filter: hgFilter || undefined });
+  }, [keyword, source, hgType, hgFilter, runSearch]);
 
   const handleSubmit = (): void => {
     const kw = input.trim();
@@ -235,7 +247,10 @@ export default function ResourceSearchPage() {
     const next = page + 1;
     setLoadingMore(true);
     try {
-      const res = await searchResources(keyword, next, source);
+      const res = await searchResources(keyword, next, source, {
+        type: hgType,
+        filter: hgFilter || undefined,
+      });
       setItems((prev) => [...prev, ...res.items]);
       setPage(res.page);
       setTotalPages(res.totalPages);
@@ -246,6 +261,10 @@ export default function ResourceSearchPage() {
       setLoadingMore(false);
     }
   };
+
+  /** 结果按来源拆分：hgme 走专属组件（分类/筛选/资源面板），1lou 走原有列表 */
+  const hgmeItems = items.filter((it) => it.source === 'hgeme');
+  const oneLouItems = items.filter((it) => it.source !== 'hgeme');
 
   /** 保存位置选择器（两个来源共用：类型决定默认目录） */
   const locationPicker = (
@@ -463,24 +482,44 @@ export default function ResourceSearchPage() {
               )}
             </p>
           )}
-          <div className="mb-3 flex items-center gap-2">
-            <p className="type-caption text-txt-tertiary">
-              「{keyword}」共 {items.length} 条结果
-              {totalPages > 1 ? ` · 第 ${page}/${totalPages} 页` : ''}
-            </p>
-            {cached && (
-              <span
-                className="rounded-pill px-2 py-[2px] text-[11px]"
-                style={{ background: 'var(--color-bg-secondary)', color: 'var(--text-tertiary)' }}
-              >
-                缓存
-              </span>
-            )}
-          </div>
+          {/* hgeme：分类 Tab + 资源面板 */}
+          {source !== '1lou' && (
+            <HgemeResults
+              keyword={keyword}
+              meta={hgMeta}
+              items={hgmeItems}
+              type={hgType}
+              filter={hgFilter}
+              onTypeChange={setHgType}
+              onFilterChange={setHgFilter}
+              qbReady={qbReady}
+              qbPaths={qbPaths}
+              defaultType={defaultType}
+              onNotice={setDlMsg}
+            />
+          )}
 
-          <ul className="flex flex-col gap-3">
-            {items.map((item) => (
-              <li key={item.tid}>
+          {/* 1lou 列表 */}
+          {source !== 'hgeme' && oneLouItems.length > 0 && (
+            <>
+              <div className="mb-3 flex items-center gap-2">
+                <p className="type-caption text-txt-tertiary">
+                  {source === 'all' ? '1lou · ' : ''}共 {oneLouItems.length} 条结果
+                  {totalPages > 1 ? ` · 第 ${page}/${totalPages} 页` : ''}
+                </p>
+                {cached && (
+                  <span
+                    className="rounded-pill px-2 py-[2px] text-[11px]"
+                    style={{ background: 'var(--color-bg-secondary)', color: 'var(--text-tertiary)' }}
+                  >
+                    缓存
+                  </span>
+                )}
+              </div>
+
+              <ul className="flex flex-col gap-3">
+                {oneLouItems.map((item) => (
+                  <li key={item.tid}>
                 <GlassPanel className="p-4" bordered>
                   <div className="flex items-start gap-4">
                     <div className="min-w-0 flex-1">
@@ -558,7 +597,9 @@ export default function ResourceSearchPage() {
                 </GlassPanel>
               </li>
             ))}
-          </ul>
+              </ul>
+            </>
+          )}
 
           {page < totalPages && (
             <div className="mt-6 text-center">
@@ -642,7 +683,7 @@ export default function ResourceSearchPage() {
                                     {m.title}
                                   </p>
                                   <p className="type-caption text-txt-tertiary">
-                                    {[m.size, m.tag, m.time].filter(Boolean).join(' · ')}
+                                    {[m.quality, m.size, m.time].filter(Boolean).join(' · ')}
                                   </p>
                                 </div>
                                 <Button

@@ -156,8 +156,12 @@ export function searchMedia(q: string, page = 1): Promise<SearchResult> {
 export type ResourceSource = '1lou' | 'hgeme';
 export type ResourceSourceFilter = 'all' | ResourceSource;
 
+/** hgeme 条目类型：影片候选 / 单个种子 / 网盘链接 */
+export type ResourceItemKind = 'title' | 'torrent' | 'pan';
+
 export interface ResourceItem {
   source: ResourceSource;
+  kind?: ResourceItemKind;
   tid: string;
   title: string;
   url: string;
@@ -166,11 +170,17 @@ export interface ResourceItem {
   date: string | null;
   views: number | null;
   comments: number | null;
-  /** hgeme 专有：类型段（mv/tv…）与附加信息 */
+  /** hgeme 专有：类型段（mv/tv/bt…）与附加信息 */
   dir?: string;
   year?: number | null;
   rating?: number | null;
   info?: string | null;
+  /** hgeme 种子条目 */
+  size?: string;
+  seeds?: number | null;
+  /** hgeme 网盘条目 */
+  netdisk?: string | null;
+  hot?: string | null;
 }
 
 export interface ResourceSourceStatus {
@@ -180,6 +190,15 @@ export interface ResourceSourceStatus {
   error?: string;
 }
 
+/** hgeme 搜索分类与资源类型筛选元信息 */
+export interface HgemeSearchMeta {
+  categories: Array<{ key: number; label: string }>;
+  ty: number;
+  counts: number[];
+  filters: Record<string, number>;
+  filterCurrent: string;
+}
+
 export interface ResourceSearchResult {
   keyword: string;
   page: number;
@@ -187,23 +206,63 @@ export interface ResourceSearchResult {
   items: ResourceItem[];
   cached: boolean;
   sources: ResourceSourceStatus[];
+  hgeme: HgemeSearchMeta | null;
 }
 
 export function searchResources(
   q: string,
   page = 1,
   source: ResourceSourceFilter = 'all',
+  hgeme?: { type?: number; filter?: string },
 ): Promise<ResourceSearchResult> {
-  return request('/resources/search', { query: { q, page, source } });
+  return request('/resources/search', {
+    query: { q, page, source, type: hgeme?.type, filter: hgeme?.filter },
+  });
 }
 
-// hgeme 资源（磁力 + 网盘）
+// hgeme 影片详情 / 资源 / 单条种子
+
+export interface HgemeDetail {
+  id: string;
+  dir: string;
+  title: string;
+  ename: string | null;
+  year: number | null;
+  typename: string | null;
+  rating: number | null;
+  genres: string[];
+  regions: string[];
+  languages: string[];
+  releaseDate: string | null;
+  status: string | null;
+  summary: string | null;
+  directors: string[];
+  actors: string[];
+  hasResources: boolean;
+}
+
+export function fetchHgemeDetail(dir: string, id: string): Promise<HgemeDetail> {
+  return request('/resources/hgeme/detail', { query: { dir, id } });
+}
+
+export interface HgemeBtItem {
+  id: string;
+  title: string;
+  size: string | null;
+  magnet: string;
+}
+
+export function fetchHgemeBt(id: string): Promise<HgemeBtItem> {
+  return request('/resources/hgeme/bt', { query: { id } });
+}
 
 export interface HgemeMagnet {
   title: string;
   size: string;
-  tag: string;
+  qualityKey: string;
+  quality: string;
   time: string;
+  seeds: number | null;
   magnet: string;
 }
 
@@ -213,11 +272,27 @@ export interface HgemePan {
   netdisk: string;
   user: string | null;
   time: string | null;
+  hot: string | null;
+  invalid: boolean;
+}
+
+export interface HgemeGroup {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface HgemePlaylist {
+  name: string;
+  episodes: string[];
 }
 
 export interface HgemeResources {
   magnets: HgemeMagnet[];
+  magnetGroups: HgemeGroup[];
   pans: HgemePan[];
+  panGroups: HgemeGroup[];
+  playlists: HgemePlaylist[];
 }
 
 export function fetchHgemeResources(dir: string, id: string): Promise<HgemeResources> {
@@ -244,6 +319,7 @@ export function pushResourceDownload(opts: {
   id?: string;
   index?: number;
   magnet?: string;
+  btId?: string;
   title?: string;
   type: 'movie' | 'tv';
   savePath?: string;
@@ -258,6 +334,7 @@ export function pushResourceDownload(opts: {
       id: opts.id,
       index: opts.index,
       magnet: opts.magnet,
+      bt_id: opts.btId,
       title: opts.title,
       type: opts.type,
       save_path: opts.savePath,

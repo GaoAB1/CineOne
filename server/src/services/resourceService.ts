@@ -8,7 +8,7 @@
  */
 
 import { ApiError } from '../middleware/errorHandler';
-import { hgemeConfigured, searchHgeme, type HgemeSearchItem } from './hgemeService';
+import { HGEME_CATEGORIES, hgemeConfigured, searchHgeme, type HgemeSearchItem } from './hgemeService';
 
 const SITE_BASE = 'https://1lou.cc';
 const Hgeme = 'https://www.hgeme.com';
@@ -23,6 +23,8 @@ export type ResourceSource = '1lou' | 'hgeme';
 export interface ResourceItem {
   /** 来源站标识（前端据此展示标签与下载流程） */
   source: ResourceSource;
+  /** hgeme 条目类型：影片候选 / 单个种子 / 网盘链接 */
+  kind?: 'title' | 'torrent' | 'pan';
   tid: string;
   title: string;
   url: string;
@@ -31,11 +33,17 @@ export interface ResourceItem {
   date: string | null;
   views: number | null;
   comments: number | null;
-  /** hgeme 专有：类型段（mv/tv…），下载时回传 */
+  /** hgeme 专有：类型段（mv/tv/bt…），下载时回传 */
   dir?: string;
   year?: number | null;
   rating?: number | null;
   info?: string | null;
+  /** hgeme 种子条目：体积与做种数 */
+  size?: string;
+  seeds?: number | null;
+  /** hgeme 网盘条目：网盘名与热度标记 */
+  netdisk?: string | null;
+  hot?: string | null;
 }
 
 export interface ResourceSearchResult {
@@ -246,16 +254,63 @@ export interface AggregatedSearchResult {
   items: ResourceItem[];
   cached: boolean;
   sources: ResourceSourceStatus[];
+  /** hgeme 专属：分类 Tab 计数与资源类型筛选字典 */
+  hgeme: {
+    categories: Array<{ key: number; label: string }>;
+    ty: number;
+    counts: number[];
+    filters: Record<string, number>;
+    filterCurrent: string;
+  } | null;
 }
 
-/** hgeme 搜索结果 → 统一 ResourceItem */
+/** hgeme 搜索结果 → 统一 ResourceItem（支持影片/种子/网盘三类） */
 export function mapHgemeItems(items: HgemeSearchItem[]): ResourceItem[] {
   return items.map((item) => {
+    if (item.kind === 'torrent') {
+      const tags: string[] = [];
+      if (item.size) tags.push(item.size);
+      if (item.seeds != null) tags.push(`${item.seeds} 做种`);
+      return {
+        source: 'hgeme',
+        kind: 'torrent',
+        tid: item.id,
+        dir: 'bt',
+        title: item.title,
+        url: `${Hgeme}/bt/${item.id}`,
+        tags,
+        author: null,
+        date: item.time,
+        views: null,
+        comments: null,
+        size: item.size,
+        seeds: item.seeds,
+      };
+    }
+
+    if (item.kind === 'pan') {
+      return {
+        source: 'hgeme',
+        kind: 'pan',
+        tid: item.url,
+        title: item.title,
+        url: item.url,
+        tags: [item.netdisk].filter(Boolean),
+        author: item.user,
+        date: item.time,
+        views: null,
+        comments: null,
+        netdisk: item.netdisk || null,
+        hot: item.hot,
+      };
+    }
+
     const tags: string[] = [];
     if (item.year) tags.push(String(item.year));
     if (item.info) tags.push(...item.info.split(/\s*\/\s*/).filter(Boolean).slice(0, 3));
     return {
       source: 'hgeme',
+      kind: 'title',
       tid: item.id,
       dir: item.dir,
       title: item.title,
@@ -279,6 +334,7 @@ export async function searchAggregated(
   keyword: string,
   page: number,
   source: ResourceSourceFilter = 'all',
+  hgemeOpts: { type?: number; filter?: string } = {},
 ): Promise<AggregatedSearchResult> {
   const kw = keyword.trim();
   if (!kw) throw new ApiError(1001, '搜索关键词不能为空', 400);
@@ -286,6 +342,7 @@ export async function searchAggregated(
   const items: ResourceItem[] = [];
   let totalPages = 1;
   let cached = false;
+  let hgeme: AggregatedSearchResult['hgeme'] = null;
 
   const wantOneLou = source === 'all' || source === '1lou';
   const wantHgeme = (source === 'all' || source === 'hgeme') && hgemeConfigured();
@@ -314,13 +371,19 @@ export async function searchAggregated(
 
   if (wantHgeme) {
     tasks.push(
-      searchHgeme(kw, page)
+      searchHgeme(kw, page, hgemeOpts)
         .then((res) => {
           const mapped = mapHgemeItems(res.items);
           items.push(...mapped);
-          if (res.total > 0) {
-            totalPages = Math.max(totalPages, Math.ceil(res.total / HgemePageSize));
-          }
+          const tyCount = res.counts[res.ty] ?? mapped.length;
+          if (tyCount > 0) totalPages = Math.max(totalPages, Math.ceil(tyCount / HgemePageSize));
+          hgeme = {
+            categories: HGEME_CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
+            ty: res.ty,
+            counts: res.counts,
+            filters: res.filters,
+            filterCurrent: res.filterCurrent,
+          };
           sources.push({ source: 'hgeme', ok: true, count: mapped.length });
         })
         .catch((err: unknown) => {
@@ -345,7 +408,7 @@ export async function searchAggregated(
     throw new ApiError(2007, sources[0].error ?? '资源搜索失败', 502);
   }
 
-  return { keyword: kw, page, totalPages, items, cached, sources };
+  return { keyword: kw, page, totalPages, items, cached, sources, hgeme };
 }
 
 

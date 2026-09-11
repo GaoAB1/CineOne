@@ -188,9 +188,24 @@ export async function pingHgeme(): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
-// ---- 搜索 ----
+// ---- 搜索（分类 Tab + 资源类型筛选） ----
 
-export interface HgemeSearchItem {
+/**
+ * 站点搜索分类 Tab（前端 cats 定义）：
+ * 0 全部（影片候选）/ 1 电影 / 2 剧集 / 3 动漫 / 4 种子（直接种子资源）/ 5 网盘（直接网盘资源）
+ */
+export const HGEME_CATEGORIES = [
+  { key: 0, label: '全部' },
+  { key: 1, label: '电影' },
+  { key: 2, label: '剧集' },
+  { key: 3, label: '动漫' },
+  { key: 4, label: '种子' },
+  { key: 5, label: '网盘' },
+] as const;
+
+/** 影片候选（ty 0-3）：选择后才进入资源详情 */
+export interface HgemeTitleItem {
+  kind: 'title';
   id: string;
   dir: string;
   title: string;
@@ -201,6 +216,29 @@ export interface HgemeSearchItem {
   directors: string[];
   actors: string[];
 }
+
+/** 种子资源条目（ty 4）：直接给出种子（点击可解析磁力） */
+export interface HgemeTorrentItem {
+  kind: 'torrent';
+  id: string;
+  title: string;
+  size: string;
+  seeds: number | null;
+  time: string | null;
+}
+
+/** 网盘资源条目（ty 5）：直接给出网盘直链 */
+export interface HgemePanItem {
+  kind: 'pan';
+  title: string;
+  url: string;
+  netdisk: string;
+  user: string | null;
+  time: string | null;
+  hot: string | null;
+}
+
+export type HgemeSearchItem = HgemeTitleItem | HgemeTorrentItem | HgemePanItem;
 
 /** 从搜索页 HTML 提取 _obj.search（括号匹配，容错返回 null） */
 export function parseSearchInline(html: string): Record<string, unknown> | null {
@@ -236,6 +274,7 @@ export function parseSearchInline(html: string): Record<string, unknown> | null 
 }
 
 interface SearchInlineL {
+  /* 影片维度（ty 0-3） */
   title?: string[];
   name?: string[];
   year?: number[];
@@ -245,20 +284,70 @@ interface SearchInlineL {
   daoyan?: string[];
   zhuyan?: string[];
   pf?: { db?: { s?: number[] } };
+  /* 种子维度（ty 4） */
+  size?: string[];
+  seeds?: number[];
+  time?: string[];
+  /* 网盘维度（ty 5） */
+  tname?: string[];
+  url?: string[];
+  pw?: string[];
+  user?: string[];
+  gid?: number[];
 }
 
-/** 把 _obj.search 映射为条目数组（纯函数，便于单测） */
+/** 把 _obj.search 映射为条目数组（按数据形态区分影片/种子/网盘，纯函数便于单测） */
 export function mapSearchInline(data: Record<string, unknown>): HgemeSearchItem[] {
   const l = (data.l ?? {}) as SearchInlineL;
   const titles = l.title ?? [];
-  const ids = l.i ?? [];
   const dirs = l.d ?? [];
+
+  // 网盘：存在 url 字段
+  if (Array.isArray(l.url) && l.url.length > 0) {
+    return titles
+      .map((title, n) => {
+        const url = (l.url?.[n] ?? '').trim();
+        if (!url) return null;
+        return {
+          kind: 'pan' as const,
+          title,
+          url,
+          netdisk: (l.tname?.[n] ?? '').trim(),
+          user: (l.user?.[n] ?? '').trim() || null,
+          time: (l.time?.[n] ?? '').trim() || null,
+          hot: (l.pw?.[n] ?? '').trim() || null,
+        };
+      })
+      .filter((x): x is HgemePanItem => x !== null);
+  }
+
+  // 种子：dir 段为 bt
+  if (dirs.length > 0 && dirs.every((d) => d === 'bt')) {
+    return titles
+      .map((title, n) => {
+        const id = l.i?.[n];
+        if (!id) return null;
+        return {
+          kind: 'torrent' as const,
+          id,
+          title,
+          size: (l.size?.[n] ?? '').trim(),
+          seeds: typeof l.seeds?.[n] === 'number' ? (l.seeds?.[n] as number) : null,
+          time: (l.time?.[n] ?? '').trim() || null,
+        };
+      })
+      .filter((x): x is HgemeTorrentItem => x !== null);
+  }
+
+  // 影片候选
+  const ids = l.i ?? [];
   return titles
     .map((title, n) => {
       const id = ids[n];
       if (!id) return null;
       const scores = l.pf?.db?.s ?? [];
       return {
+        kind: 'title' as const,
         id,
         dir: dirs[n] ?? 'mv',
         title,
@@ -270,40 +359,175 @@ export function mapSearchInline(data: Record<string, unknown>): HgemeSearchItem[
         actors: (l.zhuyan?.[n] ?? '').split(/\s*\/\s*/).filter(Boolean).slice(0, 5),
       };
     })
-    .filter((x): x is HgemeSearchItem => x !== null);
+    .filter((x): x is HgemeTitleItem => x !== null);
 }
 
 export interface HgemeSearchResult {
   items: HgemeSearchItem[];
-  /** 各分类结果数汇总（服务端提供，用于估算总页数） */
-  total: number;
+  /** 当前分类（0-5） */
+  ty: number;
+  /** 各分类结果数（对应 HGEME_CATEGORIES 顺序） */
+  counts: number[];
+  /** 资源类型筛选字典（画质或网盘名 → 数量） */
+  filters: Record<string, number>;
+  /** 当前选中的资源类型筛选 */
+  filterCurrent: string;
 }
 
-/** 搜索（关键词）；每页 19 条 */
-export async function searchHgeme(keyword: string, page = 1): Promise<HgemeSearchResult> {
+/**
+ * 搜索（关键词 + 分类 + 资源类型筛选）。
+ * URL 形如 /search?q=&type=<分类>&mode=&page=<页码>[&ziyuan=<筛选>]
+ */
+export async function searchHgeme(
+  keyword: string,
+  page = 1,
+  opts: { type?: number; filter?: string } = {},
+): Promise<HgemeSearchResult> {
   const kw = keyword.trim();
   if (!kw) throw new ApiError(1001, '搜索关键词不能为空', 400);
-  const pageParam = page > 1 ? `&p=${Math.min(50, page)}` : '';
-  const html = await requestText(`/search?q=${encodeURIComponent(kw)}${pageParam}`);
+  const ty = Number.isInteger(opts.type) && (opts.type as number) >= 0 && (opts.type as number) <= 5 ? (opts.type as number) : 0;
+  const pageParam = page > 1 ? `&page=${Math.min(200, page)}` : '';
+  const filterParam = opts.filter?.trim() ? `&ziyuan=${encodeURIComponent(opts.filter.trim())}` : '';
+  const html = await requestText(`/search?q=${encodeURIComponent(kw)}&type=${ty}&mode=${pageParam}${filterParam}`);
   const inline = parseSearchInline(html);
   if (!inline) {
     if (html.includes('浏览器安全验证')) {
       throw new ApiError(2006, 'hgme 需要浏览器验证，请更新 Cookie', 502);
     }
-    return { items: [], total: 0 };
+    return { items: [], ty, counts: [0, 0, 0, 0, 0, 0], filters: {}, filterCurrent: '' };
   }
-  const ns = Array.isArray(inline.ns) ? (inline.ns as unknown[]) : [];
-  const total = ns.reduce<number>((sum, n) => sum + (typeof n === 'number' ? n : 0), 0);
-  return { items: mapSearchInline(inline), total };
+  const rawCounts = Array.isArray(inline.ns) ? (inline.ns as unknown[]) : [];
+  const counts = rawCounts.map((n) => (typeof n === 'number' ? n : Number.parseInt(String(n), 10) || 0));
+  const filters = (inline.zy && typeof inline.zy === 'object' ? (inline.zy as Record<string, number>) : {}) ?? {};
+  return {
+    items: mapSearchInline(inline),
+    ty: typeof inline.ty === 'number' ? inline.ty : ty,
+    counts,
+    filters,
+    filterCurrent: typeof inline.zy_cur === 'string' ? inline.zy_cur : '',
+  };
 }
 
-// ---- 资源（磁力 + 网盘） ----
+// ---- 影片详情（资源面板头部） ----
+
+export interface HgemeDetail {
+  id: string;
+  dir: string;
+  title: string;
+  ename: string | null;
+  year: number | null;
+  typename: string | null;
+  rating: number | null;
+  genres: string[];
+  regions: string[];
+  languages: string[];
+  releaseDate: string | null;
+  status: string | null;
+  summary: string | null;
+  directors: string[];
+  actors: string[];
+  /** 是否含资源（站点 fa 字段） */
+  hasResources: boolean;
+}
+
+interface DetailInline {
+  id?: string;
+  dir?: string;
+  title?: string;
+  name?: string;
+  year?: number;
+  dname?: string;
+  leixing?: string[];
+  diqu?: string[];
+  yuyan?: string[];
+  stime?: string;
+  status?: string;
+  summary?: string;
+  fa?: number;
+  daoyan?: string[];
+  zhuyan?: string[];
+  pf?: { db?: { s?: number } };
+}
+
+/** 从详情页 HTML 提取 _obj.d（纯函数） */
+export function parseDetailInline(html: string): Record<string, unknown> | null {
+  const key = '_obj.d=';
+  const start = html.indexOf(key);
+  if (start < 0) return null;
+  const rest = html.slice(start + key.length);
+  let depth = 0;
+  let inStr = false;
+  let escape = false;
+  for (let i = 0; i < rest.length; i += 1) {
+    const c = rest[i];
+    if (inStr) {
+      if (escape) escape = false;
+      else if (c === '\\') escape = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '[' || c === '{') depth += 1;
+    else if (c === ']' || c === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(rest.slice(0, i + 1)) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** 详情内联数据 → 结构化（纯函数） */
+export function mapDetailInline(raw: Record<string, unknown>, fallbackDir: string, fallbackId: string): HgemeDetail {
+  const d = raw as DetailInline;
+  return {
+    id: d.id ?? fallbackId,
+    dir: d.dir ?? fallbackDir,
+    title: d.title ?? '',
+    ename: (d.name ?? '').trim() || null,
+    year: typeof d.year === 'number' ? d.year : null,
+    typename: (d.dname ?? '').trim() || null,
+    rating: typeof d.pf?.db?.s === 'number' ? (d.pf?.db?.s as number) : null,
+    genres: Array.isArray(d.leixing) ? d.leixing : [],
+    regions: Array.isArray(d.diqu) ? d.diqu : [],
+    languages: Array.isArray(d.yuyan) ? d.yuyan : [],
+    releaseDate: (d.stime ?? '').trim() || null,
+    status: (d.status ?? '').trim() || null,
+    summary: (d.summary ?? '').trim() || null,
+    directors: Array.isArray(d.daoyan) ? d.daoyan : [],
+    actors: Array.isArray(d.zhuyan) ? d.zhuyan : [],
+    hasResources: d.fa === 1,
+  };
+}
+
+/** 拉取影片详情（资源面板头部信息） */
+export async function fetchHgemeDetail(dir: string, id: string): Promise<HgemeDetail> {
+  if (!/^[a-z]{2,6}$/i.test(dir) || !/^[\w-]{2,16}$/.test(id)) {
+    throw new ApiError(1001, '非法的资源标识', 400);
+  }
+  const html = await requestText(`/${encodeURIComponent(dir)}/${encodeURIComponent(id)}`);
+  const raw = parseDetailInline(html);
+  if (!raw) throw baseError('hgme 影片详情解析失败');
+  return mapDetailInline(raw, dir, id);
+}
+
+// ---- 资源（磁力 + 网盘 + 在线播放） ----
 
 export interface HgemeMagnet {
   title: string;
   size: string;
-  tag: string;
+  /** 画质分类键（如 i3） */
+  qualityKey: string;
+  /** 画质分类中文（如 1080P） */
+  quality: string;
   time: string;
+  /** 做种/热度（站点 e 字段） */
+  seeds: number | null;
   magnet: string;
 }
 
@@ -313,36 +537,73 @@ export interface HgemePan {
   netdisk: string;
   user: string | null;
   time: string | null;
+  /** 热度标记（站点 p 字段，含 emoji） */
+  hot: string | null;
+  /** gid=6 视为失效资源 */
+  invalid: boolean;
+}
+
+export interface HgemePlaylist {
+  name: string;
+  episodes: string[];
+}
+
+export interface HgemeGroup {
+  key: string;
+  label: string;
+  count: number;
 }
 
 export interface HgemeResources {
   magnets: HgemeMagnet[];
+  /** 磁力按画质分组统计 */
+  magnetGroups: HgemeGroup[];
   pans: HgemePan[];
+  /** 网盘按网盘名分组统计 */
+  panGroups: HgemeGroup[];
+  playlists: HgemePlaylist[];
 }
 
 interface DownurlPayload {
   downlist?: {
+    type?: { a?: string[]; b?: string[] };
     list?: {
       m?: string[];
       t?: string[];
       s?: string[];
       p?: string[];
       n?: string[];
+      e?: number[];
     };
   };
   panlist?: {
     id?: string[];
     name?: string[];
     url?: string[];
+    /** 网盘名字典（长度 = 网盘种类） */
     tname?: string[];
     user?: string[];
     time?: string[];
+    p?: string[];
+    /** 每条资源的网盘索引（对应 tname[type]） */
+    type?: number[];
+    /** 状态码，6 = 失效 */
+    gid?: number[];
   };
+  playlist?: Array<{ i?: string; t?: string; list?: string[] }>;
 }
 
-/** 把 /res/downurl 响应映射为磁力与网盘列表（纯函数，便于单测） */
+/** 把 /res/downurl 响应映射为磁力/网盘/在线线路（纯函数，便于单测） */
 export function mapDownurl(payload: DownurlPayload): HgemeResources {
   const list = payload.downlist?.list ?? {};
+  const qualityKeys = payload.downlist?.type?.b ?? [];
+  const qualityLabels = payload.downlist?.type?.a ?? [];
+  const qualityOf = (key: string | undefined): string => {
+    if (!key) return '';
+    const idx = qualityKeys.indexOf(key);
+    return idx >= 0 ? (qualityLabels[idx] ?? key) : key;
+  };
+
   const m = list.m ?? [];
   const t = list.t ?? [];
   const magnets: HgemeMagnet[] = [];
@@ -353,34 +614,64 @@ export function mapDownurl(payload: DownurlPayload): HgemeResources {
     const hashLower = hash.toLowerCase();
     if (seen.has(hashLower)) continue;
     seen.add(hashLower);
+    const qualityKey = (list.p?.[n] ?? '').trim();
     magnets.push({
       title: t[n] ?? `资源 ${n + 1}`,
       size: list.s?.[n] ?? '',
-      tag: list.p?.[n] ?? '',
+      qualityKey,
+      quality: qualityOf(qualityKey),
       time: list.n?.[n] ?? '',
+      seeds: typeof list.e?.[n] === 'number' ? (list.e?.[n] as number) : null,
       magnet: `magnet:?xt=urn:btih:${hashLower}&dn=${encodeURIComponent(t[n] ?? '')}`,
     });
   }
 
+  const qualityCount = new Map<string, number>();
+  for (const item of magnets) {
+    const label = item.quality || '其他';
+    qualityCount.set(label, (qualityCount.get(label) ?? 0) + 1);
+  }
+  const magnetGroups: HgemeGroup[] = [...qualityCount.entries()]
+    .map(([label, count]) => ({ key: label, label, count }))
+    .sort((a, b) => b.count - a.count);
+
   const pan = payload.panlist ?? {};
+  const panDict = pan.tname ?? [];
   const pans: HgemePan[] = (pan.name ?? [])
     .map((name, n) => {
       const url = (pan.url?.[n] ?? '').trim();
       if (!url) return null;
+      const typeIdx = pan.type?.[n];
+      const netdisk =
+        typeof typeIdx === 'number' && panDict[typeIdx] ? panDict[typeIdx] : '未知网盘';
       return {
         name,
         url,
-        netdisk: pan.tname?.[n] ?? '',
-        user: pan.user?.[n] ?? null,
-        time: pan.time?.[n] ?? null,
+        netdisk,
+        user: (pan.user?.[n] ?? '').trim() || null,
+        time: (pan.time?.[n] ?? '').trim() || null,
+        hot: (pan.p?.[n] ?? '').trim() || null,
+        invalid: pan.gid?.[n] === 6,
       };
     })
     .filter((x): x is HgemePan => x !== null);
 
-  return { magnets, pans };
+  const panCount = new Map<string, number>();
+  for (const item of pans) {
+    panCount.set(item.netdisk, (panCount.get(item.netdisk) ?? 0) + 1);
+  }
+  const panGroups: HgemeGroup[] = [...panCount.entries()]
+    .map(([label, count]) => ({ key: label, label, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const playlists: HgemePlaylist[] = (payload.playlist ?? [])
+    .filter((p) => p?.t)
+    .map((p) => ({ name: p.t as string, episodes: Array.isArray(p.list) ? p.list : [] }));
+
+  return { magnets, magnetGroups, pans, panGroups, playlists };
 }
 
-/** 拉取某条目的磁力与网盘资源 */
+/** 拉取某影片条目的磁力/网盘/在线播放资源 */
 export async function fetchHgemeResources(dir: string, id: string): Promise<HgemeResources> {
   if (!/^[a-z]{2,6}$/i.test(dir) || !/^[\w-]{2,16}$/.test(id)) {
     throw new ApiError(1001, '非法的资源标识', 400);
@@ -393,4 +684,38 @@ export async function fetchHgemeResources(dir: string, id: string): Promise<Hgem
     throw baseError('hgme 资源数据解析失败');
   }
   return mapDownurl(payload);
+}
+
+// ---- 单条种子（ty 4 列表点击后） ----
+
+export interface HgemeBtItem {
+  id: string;
+  title: string;
+  size: string | null;
+  magnet: string;
+}
+
+/** 从 /bt/<id> 页面解析磁力（纯函数） */
+export function parseBtPage(html: string, id: string): HgemeBtItem | null {
+  const magnet = /magnet:\?xt=urn:btih:([a-fA-F0-9]{40})/i.exec(html);
+  if (!magnet) return null;
+  const title =
+    /<title>([^<]*)<\/title>/i.exec(html)?.[1]?.trim() ??
+    (/_obj\.d=\{[^}]*"title":"([^"]*)"/.exec(html)?.[1] ?? '');
+  const size = /"size":"([^"]*)"/.exec(html)?.[1] ?? null;
+  return {
+    id,
+    title: title.replace(/^Loading\.\.\.$/i, ''),
+    size,
+    magnet: `magnet:?xt=urn:btih:${magnet[1].toLowerCase()}`,
+  };
+}
+
+/** 拉取单条种子的磁力（种子 Tab 直接推送用） */
+export async function fetchHgemeBt(id: string): Promise<HgemeBtItem> {
+  if (!/^[\w-]{2,16}$/.test(id)) throw new ApiError(1001, '非法的种子标识', 400);
+  const html = await requestText(`/bt/${encodeURIComponent(id)}`);
+  const item = parseBtPage(html, id);
+  if (!item) throw new ApiError(2005, '未从该种子页面解析到磁力链接', 502);
+  return item;
 }

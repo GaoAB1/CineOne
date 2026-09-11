@@ -10,7 +10,7 @@ import { rateLimit } from '../middleware/rateLimit';
 import { ApiError } from '../middleware/errorHandler';
 import { getSetting } from '../services/settingsService';
 import { addTorrentFile, addTorrentUrl } from '../services/qbService';
-import { fetchHgemeResources, pingHgeme } from '../services/hgemeService';
+import { fetchHgemeBt, fetchHgemeDetail, fetchHgemeResources, pingHgeme } from '../services/hgemeService';
 import {
   downloadTorrent,
   fetchThreadAttachments,
@@ -36,7 +36,32 @@ router.get(
     const rawSource = typeof req.query.source === 'string' ? req.query.source : 'all';
     const source: ResourceSourceFilter =
       rawSource === '1lou' || rawSource === 'hgeme' ? rawSource : 'all';
-    ok(res, await searchAggregated(q, page, source));
+    // hgme 分类（0 全部 / 1 电影 / 2 剧集 / 3 动漫 / 4 种子 / 5 网盘）与资源类型筛选
+    const rawType = Number.parseInt(String(req.query.type ?? ''), 10);
+    const hgemeType = Number.isInteger(rawType) && rawType >= 0 && rawType <= 5 ? rawType : undefined;
+    const filter = typeof req.query.filter === 'string' ? req.query.filter.trim() : undefined;
+    ok(res, await searchAggregated(q, page, source, { type: hgemeType, filter }));
+  }),
+);
+
+/** GET /api/resources/hgeme/detail?dir=&id= —— hgme 影片详情（资源面板头部） */
+router.get(
+  '/hgeme/detail',
+  asyncHandler(async (req, res) => {
+    const dir = typeof req.query.dir === 'string' ? req.query.dir.trim() : '';
+    const id = typeof req.query.id === 'string' ? req.query.id.trim() : '';
+    if (!dir || !id) throw new ApiError(1001, 'dir 与 id 均为必填', 400);
+    ok(res, await fetchHgemeDetail(dir, id));
+  }),
+);
+
+/** GET /api/resources/hgeme/bt?id= —— 单条种子磁力（种子 Tab 直接推送） */
+router.get(
+  '/hgeme/bt',
+  asyncHandler(async (req, res) => {
+    const id = typeof req.query.id === 'string' ? req.query.id.trim() : '';
+    if (!id) throw new ApiError(1001, 'id 不能为空', 400);
+    ok(res, await fetchHgemeBt(id));
   }),
 );
 
@@ -86,8 +111,16 @@ router.post(
       const dir = String(body.dir ?? '').trim();
       const id = String(body.id ?? '').trim();
       const directMagnet = typeof body.magnet === 'string' ? body.magnet.trim() : '';
+      const btId = String(body.bt_id ?? '').trim();
       let magnet = directMagnet;
       let name = typeof body.title === 'string' ? body.title.trim() : '';
+
+      // 种子 Tab 直接推送：先解析 /bt/<id> 页面拿到磁力
+      if (!magnet && btId) {
+        const bt = await fetchHgemeBt(btId);
+        magnet = bt.magnet;
+        name = name || bt.title;
+      }
 
       if (!magnet) {
         const resources = await fetchHgemeResources(dir, id);
