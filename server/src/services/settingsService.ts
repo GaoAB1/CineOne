@@ -110,6 +110,9 @@ export function getSettingsView(): Record<string, unknown> {
     qb_save_paths: getSetting('qb_save_paths'),
     qb_category_movie: getSetting('qb_category_movie').trim(),
     qb_category_tv: getSetting('qb_category_tv').trim(),
+    // hgeme 资源站：Cookie 属敏感信息，只给打码与 set 标志
+    hgeme_cookie_masked: maskApiKey(getSetting('hgeme_cookie')),
+    hgeme_cookie_set: getSetting('hgeme_cookie').trim().length > 0,
   };
 }
 

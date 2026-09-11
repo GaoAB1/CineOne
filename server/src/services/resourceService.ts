@@ -8,14 +8,21 @@
  */
 
 import { ApiError } from '../middleware/errorHandler';
+import { hgemeConfigured, searchHgeme, type HgemeSearchItem } from './hgemeService';
 
 const SITE_BASE = 'https://1lou.cc';
+const Hgeme = 'https://www.hgeme.com';
 const REQUEST_TIMEOUT_MS = 45_000;
 const CACHE_TTL_MS = 20 * 60 * 1000;
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
+/** 资源来源站 */
+export type ResourceSource = '1lou' | 'hgeme';
+
 export interface ResourceItem {
+  /** 来源站标识（前端据此展示标签与下载流程） */
+  source: ResourceSource;
   tid: string;
   title: string;
   url: string;
@@ -24,6 +31,11 @@ export interface ResourceItem {
   date: string | null;
   views: number | null;
   comments: number | null;
+  /** hgeme 专有：类型段（mv/tv…），下载时回传 */
+  dir?: string;
+  year?: number | null;
+  rating?: number | null;
+  info?: string | null;
 }
 
 export interface ResourceSearchResult {
@@ -91,6 +103,7 @@ export function parseSearchHtml(html: string): { items: ResourceItem[]; totalPag
     }
 
     items.push({
+      source: '1lou',
       tid,
       title,
       url: `${SITE_BASE}/thread-${tid}.htm`,
@@ -210,6 +223,129 @@ export async function downloadTorrent(attachment: ResourceAttachment): Promise<T
     throw new ApiError(2005, '未获取到有效的种子文件（源站可能要求登录）', 502);
   }
   return { filename: attachment.filename, data: buf };
+}
+
+// ---- 多源聚合（1lou + hgeme） ----
+
+/** hgeme 每页条目数（站点固定 19 条） */
+const HgemePageSize = 19;
+
+export type ResourceSourceFilter = 'all' | ResourceSource;
+
+export interface ResourceSourceStatus {
+  source: ResourceSource;
+  ok: boolean;
+  count: number;
+  error?: string;
+}
+
+export interface AggregatedSearchResult {
+  keyword: string;
+  page: number;
+  totalPages: number;
+  items: ResourceItem[];
+  cached: boolean;
+  sources: ResourceSourceStatus[];
+}
+
+/** hgeme 搜索结果 → 统一 ResourceItem */
+export function mapHgemeItems(items: HgemeSearchItem[]): ResourceItem[] {
+  return items.map((item) => {
+    const tags: string[] = [];
+    if (item.year) tags.push(String(item.year));
+    if (item.info) tags.push(...item.info.split(/\s*\/\s*/).filter(Boolean).slice(0, 3));
+    return {
+      source: 'hgeme',
+      tid: item.id,
+      dir: item.dir,
+      title: item.title,
+      url: `${Hgeme}/${item.dir}/${item.id}`,
+      tags,
+      author: item.directors[0] ?? null,
+      date: null,
+      views: null,
+      comments: null,
+      year: item.year,
+      rating: item.rating,
+      info: item.info,
+    };
+  });
+}
+
+/**
+ * 聚合搜索：按 source 参数选择来源（all = 并行两源，单源失败不影响另一源）。
+ */
+export async function searchAggregated(
+  keyword: string,
+  page: number,
+  source: ResourceSourceFilter = 'all',
+): Promise<AggregatedSearchResult> {
+  const kw = keyword.trim();
+  if (!kw) throw new ApiError(1001, '搜索关键词不能为空', 400);
+  const sources: ResourceSourceStatus[] = [];
+  const items: ResourceItem[] = [];
+  let totalPages = 1;
+  let cached = false;
+
+  const wantOneLou = source === 'all' || source === '1lou';
+  const wantHgeme = (source === 'all' || source === 'hgeme') && hgemeConfigured();
+
+  const tasks: Array<Promise<void>> = [];
+
+  if (wantOneLou) {
+    tasks.push(
+      searchResources(kw, page)
+        .then((res) => {
+          items.push(...res.items);
+          totalPages = Math.max(totalPages, res.totalPages);
+          cached = cached || res.cached;
+          sources.push({ source: '1lou', ok: true, count: res.items.length });
+        })
+        .catch((err: unknown) => {
+          sources.push({
+            source: '1lou',
+            ok: false,
+            count: 0,
+            error: err instanceof ApiError ? err.message : '1lou 搜索失败',
+          });
+        }),
+    );
+  }
+
+  if (wantHgeme) {
+    tasks.push(
+      searchHgeme(kw, page)
+        .then((res) => {
+          const mapped = mapHgemeItems(res.items);
+          items.push(...mapped);
+          if (res.total > 0) {
+            totalPages = Math.max(totalPages, Math.ceil(res.total / HgemePageSize));
+          }
+          sources.push({ source: 'hgeme', ok: true, count: mapped.length });
+        })
+        .catch((err: unknown) => {
+          sources.push({
+            source: 'hgeme',
+            ok: false,
+            count: 0,
+            error: err instanceof ApiError ? err.message : 'hgme 搜索失败',
+          });
+        }),
+    );
+  }
+
+  if (tasks.length === 0) {
+    throw new ApiError(2006, '未启用任何资源源（请在设置中配置 hgeme Cookie 或使用 1lou）', 400);
+  }
+
+  await Promise.all(tasks);
+
+  // 全部源都失败 → 抛出首个错误，便于前端提示
+  if (sources.length > 0 && sources.every((s) => !s.ok) && items.length === 0) {
+    throw new ApiError(2007, sources[0].error ?? '资源搜索失败', 502);
+  }
+
+  return { keyword: kw, page, totalPages, items, cached, sources };
 }
 
 

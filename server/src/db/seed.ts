@@ -51,6 +51,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   qb_category_movie: '',
   /** 剧集任务分类（qB 分类名，留空则不设置） */
   qb_category_tv: '',
+  /** hgeme.com 资源站 Cookie（浏览器登录后复制；空串表示未启用该源） */
+  hgeme_cookie: '',
 };
 
 export function runSeed(): void {

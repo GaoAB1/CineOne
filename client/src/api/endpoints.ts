@@ -71,6 +71,9 @@ export interface SettingsView {
   qb_save_paths: string;
   qb_category_movie: string;
   qb_category_tv: string;
+  // hgeme 资源站
+  hgeme_cookie_masked: string;
+  hgeme_cookie_set: boolean;
 }
 
 export function fetchSettings(): Promise<SettingsView> {
@@ -147,9 +150,14 @@ export function searchMedia(q: string, page = 1): Promise<SearchResult> {
   return request('/tmdb/search', { query: { q, page } });
 }
 
-// ---- 资源搜索（1lou 聚合，站内展示） ----
+// ---- 资源搜索（1lou + hgeme 聚合） ----
+
+/** 资源来源站 */
+export type ResourceSource = '1lou' | 'hgeme';
+export type ResourceSourceFilter = 'all' | ResourceSource;
 
 export interface ResourceItem {
+  source: ResourceSource;
   tid: string;
   title: string;
   url: string;
@@ -158,6 +166,18 @@ export interface ResourceItem {
   date: string | null;
   views: number | null;
   comments: number | null;
+  /** hgeme 专有：类型段（mv/tv…）与附加信息 */
+  dir?: string;
+  year?: number | null;
+  rating?: number | null;
+  info?: string | null;
+}
+
+export interface ResourceSourceStatus {
+  source: ResourceSource;
+  ok: boolean;
+  count: number;
+  error?: string;
 }
 
 export interface ResourceSearchResult {
@@ -166,10 +186,46 @@ export interface ResourceSearchResult {
   totalPages: number;
   items: ResourceItem[];
   cached: boolean;
+  sources: ResourceSourceStatus[];
 }
 
-export function searchResources(q: string, page = 1): Promise<ResourceSearchResult> {
-  return request('/resources/search', { query: { q, page } });
+export function searchResources(
+  q: string,
+  page = 1,
+  source: ResourceSourceFilter = 'all',
+): Promise<ResourceSearchResult> {
+  return request('/resources/search', { query: { q, page, source } });
+}
+
+// hgeme 资源（磁力 + 网盘）
+
+export interface HgemeMagnet {
+  title: string;
+  size: string;
+  tag: string;
+  time: string;
+  magnet: string;
+}
+
+export interface HgemePan {
+  name: string;
+  url: string;
+  netdisk: string;
+  user: string | null;
+  time: string | null;
+}
+
+export interface HgemeResources {
+  magnets: HgemeMagnet[];
+  pans: HgemePan[];
+}
+
+export function fetchHgemeResources(dir: string, id: string): Promise<HgemeResources> {
+  return request('/resources/hgeme/resources', { query: { dir, id } });
+}
+
+export function pingHgeme(): Promise<{ ok: boolean }> {
+  return request('/resources/hgeme/status');
 }
 
 /** 一键推送资源到 qBittorrent 下载 */
@@ -182,14 +238,31 @@ export interface PushDownloadResult {
 }
 
 export function pushResourceDownload(opts: {
-  tid: string;
+  source?: ResourceSource;
+  tid?: string;
+  dir?: string;
+  id?: string;
+  index?: number;
+  magnet?: string;
+  title?: string;
   type: 'movie' | 'tv';
   savePath?: string;
   category?: string;
 }): Promise<PushDownloadResult> {
   return request('/resources/download', {
     method: 'POST',
-    body: { tid: opts.tid, type: opts.type, save_path: opts.savePath, category: opts.category },
+    body: {
+      source: opts.source ?? '1lou',
+      tid: opts.tid,
+      dir: opts.dir,
+      id: opts.id,
+      index: opts.index,
+      magnet: opts.magnet,
+      title: opts.title,
+      type: opts.type,
+      save_path: opts.savePath,
+      category: opts.category,
+    },
   });
 }
 
