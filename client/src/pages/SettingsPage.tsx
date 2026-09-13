@@ -3,7 +3,7 @@
  * 移动端 Tab 可横滑；用户管理仅管理员可见；非管理员读取设置返回 1003 时展示只读提示。
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchSettings, updateSettings, type SettingsView } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import Button from '../components/ui/Button';
@@ -61,6 +61,25 @@ export default function SettingsPage() {
 
   const [tab, setTab] = useState<SettingsTab>('media');
 
+  // 页签栏横向滑动：两侧箭头按钮 + 可滑动状态（边界自动禁用）
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [canScroll, setCanScroll] = useState({ left: false, right: false });
+
+  const updateScrollState = useCallback((): void => {
+    const el = tabsRef.current;
+    if (!el) return;
+    setCanScroll({
+      left: el.scrollLeft > 1,
+      right: el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
+    });
+  }, []);
+
+  const scrollTabs = (dir: -1 | 1): void => {
+    const el = tabsRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.7), behavior: 'smooth' });
+  };
+
   const [settings, setSettings] = useState<SettingsView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -70,6 +89,20 @@ export default function SettingsPage() {
   const [savingKey, setSavingKey] = useState(false);
   const [savingTtl, setSavingTtl] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // loading 结束、页签栏渲染后才绑定监听（Spinner 阶段 ref 为空）
+  useEffect(() => {
+    if (loading) return;
+    updateScrollState();
+    const el = tabsRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [loading, updateScrollState]);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -141,37 +174,76 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-[640px]">
-      {/* 分类标签（移动端可横滑） */}
-      <div className="no-scrollbar mb-5 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="设置分类">
-        {visibleTabs.map((t) => {
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(t.key)}
-              className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
-              style={
-                active
-                  ? {
-                      background: 'var(--surface-warm)',
-                      color: 'var(--color-accent)',
-                      border: '1px solid var(--color-accent)',
-                    }
-                  : {
-                      background: 'var(--color-bg-secondary)',
-                      color: 'var(--text-secondary)',
-                      border: '1px solid transparent',
-                    }
-              }
-            >
-              <i className={`${t.icon} text-[16px]`} aria-hidden />
-              {t.label}
-            </button>
-          );
-        })}
+      {/* 分类标签（移动端可横滑；两侧箭头按钮辅助滑动） */}
+      <div className="mb-5 flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="向前滑动页签"
+          disabled={!canScroll.left}
+          onClick={() => scrollTabs(-1)}
+          className="press-spring flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[18px]"
+          style={{
+            background: 'var(--color-bg-secondary)',
+            color: 'var(--color-accent)',
+            border: '1px solid var(--border-light)',
+            opacity: canScroll.left ? 1 : 0.35,
+            cursor: canScroll.left ? 'pointer' : 'default',
+          }}
+        >
+          <i className="ri-arrow-left-s-line" aria-hidden />
+        </button>
+        <div
+          ref={tabsRef}
+          className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1"
+          role="tablist"
+          aria-label="设置分类"
+        >
+          {visibleTabs.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t.key)}
+                className="press-spring flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
+                style={
+                  active
+                    ? {
+                        background: 'var(--surface-warm)',
+                        color: 'var(--color-accent)',
+                        border: '1px solid var(--color-accent)',
+                      }
+                    : {
+                        background: 'var(--color-bg-secondary)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid transparent',
+                      }
+                }
+              >
+                <i className={`${t.icon} text-[16px]`} aria-hidden />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          aria-label="向后滑动页签"
+          disabled={!canScroll.right}
+          onClick={() => scrollTabs(1)}
+          className="press-spring flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[18px]"
+          style={{
+            background: 'var(--color-bg-secondary)',
+            color: 'var(--color-accent)',
+            border: '1px solid var(--border-light)',
+            opacity: canScroll.right ? 1 : 0.35,
+            cursor: canScroll.right ? 'pointer' : 'default',
+          }}
+        >
+          <i className="ri-arrow-right-s-line" aria-hidden />
+        </button>
       </div>
 
       {notice && (
