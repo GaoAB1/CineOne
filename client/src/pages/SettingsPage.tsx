@@ -15,12 +15,13 @@ import EmbySection from '../components/settings/EmbySection';
 import MoviePilotSection from '../components/settings/MoviePilotSection';
 import QbittorrentSection from '../components/settings/QbittorrentSection';
 import HgemeSection from '../components/settings/HgemeSection';
+import Pan115Section from '../components/settings/Pan115Section';
 import ChangePasswordSection from '../components/settings/ChangePasswordSection';
 import UserManageSection from '../components/settings/UserManageSection';
 import { useAuth } from '../stores/AuthContext';
 import { useTheme } from '../stores/ThemeContext';
 
-type SettingsTab = 'media' | 'emby' | 'moviepilot' | 'qb' | 'sources' | 'account' | 'users';
+type SettingsTab = 'media' | 'emby' | 'moviepilot' | 'qb' | 'pan115' | 'sources' | 'account' | 'users';
 
 const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
   { key: 'media', label: '媒体服务', icon: 'ri-key-2-line' },
@@ -255,6 +256,8 @@ export default function SettingsPage() {
       {tab === 'moviepilot' && <MoviePilotSection />}
 
       {tab === 'qb' && <QbittorrentSection />}
+
+      {tab === 'pan115' && <Pan115Section />}
 
       {tab === 'sources' && <HgemeSection />}
 

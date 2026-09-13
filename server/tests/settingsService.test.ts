@@ -56,6 +56,13 @@ describe('settingsService', () => {
     assert.equal(getSetting('qb_save_paths'), '');
     assert.equal(getSetting('qb_category_movie'), '');
     assert.equal(getSetting('qb_category_tv'), '');
+    // M6 115 网盘离线下载键：Cookie/目录默认空串，建文件夹开关默认开启
+    assert.equal(getSetting('pan115_cookie'), '');
+    assert.equal(getSetting('pan115_save_path'), '');
+    assert.equal(getSetting('pan115_paths'), '');
+    assert.equal(getSetting('pan115_save_path_movie'), '');
+    assert.equal(getSetting('pan115_save_path_tv'), '');
+    assert.equal(getSetting('pan115_folder_per_task'), '1');
     // 键总数随迭代增长，断言下限而非精确值，避免每次新增设置项都要改测试
     assert.ok(Object.keys(DEFAULT_SETTINGS).length >= 15);
   });

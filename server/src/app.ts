@@ -24,6 +24,7 @@ import usersRoutes from './routes/users.routes';
 import doubanRoutes from './routes/douban.routes';
 import resourcesRoutes from './routes/resources.routes';
 import qbRoutes from './routes/qb.routes';
+import pan115Routes from './routes/pan115.routes';
 
 export function createApp(): Express {
   const app = express();

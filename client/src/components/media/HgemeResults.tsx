@@ -8,12 +8,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  addPan115Torrent,
   fetchHgemeDetail,
   fetchHgemeResources,
+  fetchPan115Paths,
+  parsePan115TorrentFromUrl,
+  pushPan115Url,
   pushResourceDownload,
   type HgemeDetail,
   type HgemeResources,
   type HgemeSearchMeta,
+  type Pan115Paths,
+  type Pan115TorrentInfo,
   type QbPaths,
   type ResourceItem,
 } from '../../api/endpoints';
@@ -36,14 +42,27 @@ interface Props {
   onFilterChange: (filter: string) => void;
   qbReady: boolean | null;
   qbPaths: QbPaths | null;
+  /** 是否已配置 115 网盘（未配置时隐藏 115 推送入口） */
+  pan115Ready?: boolean | null;
   defaultType: MediaType;
   onNotice: (msg: { ok: boolean; text: string } | null) => void;
 }
+
+/** 推送目标：qBittorrent 本地下载 / 115 网盘离线下载 */
+type PushTarget = 'qb' | 'pan115';
 
 function kindLabel(item: ResourceItem): string {
   if (item.kind === 'torrent') return '种子';
   if (item.kind === 'pan') return item.netdisk ?? '网盘';
   return item.dir === 'tv' ? '剧集' : item.dir === 'ac' ? '动漫' : '电影';
+}
+
+const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return '';
+  const i = Math.min(SIZE_UNITS.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${SIZE_UNITS[i]}`;
 }
 
 export default function HgemeResults({
@@ -56,6 +75,7 @@ export default function HgemeResults({
   onFilterChange,
   qbReady,
   qbPaths,
+  pan115Ready = null,
   defaultType,
   onNotice,
 }: Props) {
@@ -73,6 +93,69 @@ export default function HgemeResults({
   const [dlPath, setDlPath] = useState('');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [panelMsg, setPanelMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // ---- 推送目标（qB / 115）与 115 目录 ----
+  const [target, setTarget] = useState<PushTarget>('qb');
+  const [panPaths, setPanPaths] = useState<Pan115Paths | null>(null);
+  const [panDir, setPanDir] = useState('');
+
+  // ---- 115 种子文件勾选（选择离线下载的内容） ----
+  const [torrentInfo, setTorrentInfo] = useState<Pan115TorrentInfo | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
+  const [torrentBusy, setTorrentBusy] = useState(false);
+
+  /** 抓取 .torrent（直链）→ 交 115 解析 → 展示文件树供勾选 */
+  const prepareTorrentFor115 = async (torrentUrl: string, title: string): Promise<void> => {
+    setTorrentBusy(true);
+    setPanelMsg(null);
+    try {
+      const info = await parsePan115TorrentFromUrl({ url: torrentUrl });
+      setTorrentInfo(info);
+      // 默认勾选 115 建议下载的文件（wanted != -1）
+      setSelectedFiles(new Set(info.files.filter((f) => f.wanted !== -1).map((f) => f.index)));
+    } catch (err) {
+      setPanelMsg({ ok: false, text: err instanceof ApiClientError ? err.message : '种子解析失败' });
+    } finally {
+      setTorrentBusy(false);
+    }
+  };
+
+  /** 提交 BT 离线任务（按勾选的文件） */
+  const submitTorrentTo115 = async (): Promise<void> => {
+    if (!torrentInfo) return;
+    setTorrentBusy(true);
+    setPanelMsg(null);
+    try {
+      const out = await addPan115Torrent({
+        info: torrentInfo,
+        wantedIndexes: [...selectedFiles],
+        dir: panDir.trim() || undefined,
+        type: dlType,
+      });
+      onNotice({ ok: true, text: `已推送到 115 离线下载：${out.name}` });
+      setPanelMsg({ ok: true, text: `已推送（${selectedFiles.size} 个文件）：${out.name}` });
+      setTorrentInfo(null);
+    } catch (err) {
+      setPanelMsg({ ok: false, text: err instanceof ApiClientError ? err.message : '推送失败' });
+    } finally {
+      setTorrentBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pan115Ready !== true || panPaths) return;
+    let cancelled = false;
+    void fetchPan115Paths()
+      .then((res) => {
+        if (!cancelled) setPanPaths(res);
+      })
+      .catch(() => {
+        /* 未配置或不可达：保持空预设，仍可用默认目录推送 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pan115Ready, panPaths]);
 
   const openPanel = useCallback(
     async (item: ResourceItem): Promise<void> => {
@@ -136,17 +219,27 @@ export default function HgemeResults({
     setBusyKey(magnet);
     setPanelMsg(null);
     try {
-      const out = await pushResourceDownload({
-        source: 'hgeme',
-        dir: panelItem.dir,
-        id: panelItem.tid,
-        magnet,
-        title,
-        type: dlType,
-        savePath: dlPath.trim() || undefined,
-      });
-      onNotice({ ok: true, text: `已推送到 qBittorrent：${out.name}` });
-      setPanelMsg({ ok: true, text: `已推送：${out.name}` });
+      if (target === 'pan115') {
+        const out = await pushPan115Url({
+          url: magnet,
+          dir: panDir.trim() || undefined,
+          type: dlType,
+        });
+        onNotice({ ok: true, text: `已推送到 115 离线下载：${out.name}` });
+        setPanelMsg({ ok: true, text: `已推送到 115：${out.name}` });
+      } else {
+        const out = await pushResourceDownload({
+          source: 'hgeme',
+          dir: panelItem.dir,
+          id: panelItem.tid,
+          magnet,
+          title,
+          type: dlType,
+          savePath: dlPath.trim() || undefined,
+        });
+        onNotice({ ok: true, text: `已推送到 qBittorrent：${out.name}` });
+        setPanelMsg({ ok: true, text: `已推送：${out.name}` });
+      }
     } catch (err) {
       setPanelMsg({ ok: false, text: err instanceof ApiClientError ? err.message : '推送失败' });
     } finally {
@@ -158,6 +251,8 @@ export default function HgemeResults({
     setBusyKey(item.tid);
     onNotice(null);
     try {
+      // 种子条目由后端抓取 .torrent 后推送到 qBittorrent；
+      // 推送到 115 请在资源面板中操作（那里可以预览并勾选种子内的文件）
       const out = await pushResourceDownload({
         source: 'hgeme',
         btId: item.tid,
@@ -521,6 +616,16 @@ export default function HgemeResults({
                                   .join(' · ')}
                               </p>
                             </div>
+                            {target === 'pan115' && (
+                              <Button
+                                variant="gray"
+                                className="!min-h-[32px] !px-2.5 text-[12px]"
+                                loading={torrentBusy}
+                                onClick={() => void prepareTorrentFor115(m.magnet, m.title)}
+                              >
+                                选文件
+                              </Button>
+                            )}
                             <Button
                               variant="filled"
                               className="!min-h-[32px] !px-3 text-[12px]"
@@ -600,9 +705,24 @@ export default function HgemeResults({
                   )}
                 </div>
 
-                {/* 保存位置 */}
+                {/* 推送目标与保存位置 */}
                 {tab === 'magnet' && (
                   <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--border-light)' }}>
+                    {pan115Ready === true && (
+                      <div className="mb-3 flex flex-wrap items-center gap-3">
+                        <span className="type-caption text-txt-secondary">推送到</span>
+                        <SegmentedControl<PushTarget>
+                          options={[
+                            { value: 'qb', label: 'qBittorrent' },
+                            { value: 'pan115', label: '115 离线下载' },
+                          ]}
+                          value={target}
+                          onChange={setTarget}
+                          ariaLabel="推送目标"
+                        />
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap items-center gap-3">
                       <SegmentedControl<MediaType>
                         options={[
@@ -612,25 +732,168 @@ export default function HgemeResults({
                         value={dlType}
                         onChange={(next) => {
                           setDlType(next);
-                          setDlPath(
-                            next === 'tv' ? (qbPaths?.tvPath ?? '') : (qbPaths?.moviePath ?? ''),
-                          );
+                          if (target === 'qb') {
+                            setDlPath(
+                              next === 'tv' ? (qbPaths?.tvPath ?? '') : (qbPaths?.moviePath ?? ''),
+                            );
+                          } else {
+                            setPanDir(next === 'tv' ? (panPaths?.tvPath ?? '') : (panPaths?.moviePath ?? ''));
+                          }
                         }}
                         ariaLabel="媒体类型"
                       />
-                      <input
-                        value={dlPath}
-                        onChange={(e) => setDlPath(e.target.value)}
-                        placeholder={qbPaths?.defaultSavePath ?? '保存位置（留空用默认目录）'}
-                        aria-label="下载保存目录"
-                        className="h-9 min-w-[220px] flex-1 rounded-sm border border-line bg-card px-3 text-[13px] text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent"
-                      />
+
+                      {target === 'pan115' && (panPaths?.presets.length ?? 0) > 0 ? (
+                        <>
+                          <select
+                            value={panDir}
+                            onChange={(e) => setPanDir(e.target.value)}
+                            aria-label="115 保存目录"
+                            className="h-9 min-w-[200px] flex-1 rounded-sm border border-line bg-card px-3 text-[13px] text-txt-primary outline-none focus:border-accent"
+                          >
+                            <option value="">默认目录</option>
+                            {panPaths?.presets.map((preset) => (
+                              <option key={`${preset.name}-${preset.cid}`} value={preset.name}>
+                                {preset.name}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={panDir}
+                            onChange={(e) => setPanDir(e.target.value)}
+                            placeholder="或直接填 CID / 路径"
+                            aria-label="115 保存目录 CID"
+                            className="h-9 min-w-[160px] flex-1 rounded-sm border border-line bg-card px-3 text-[13px] text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent"
+                          />
+                        </>
+                      ) : (
+                        <input
+                          value={target === 'pan115' ? panDir : dlPath}
+                          onChange={(e) =>
+                            target === 'pan115' ? setPanDir(e.target.value) : setDlPath(e.target.value)
+                          }
+                          placeholder={
+                            target === 'pan115'
+                              ? '115 保存目录（CID 或路径，留空用默认）'
+                              : (qbPaths?.defaultSavePath ?? '保存位置（留空用默认目录）')
+                          }
+                          aria-label="下载保存目录"
+                          className="h-9 min-w-[220px] flex-1 rounded-sm border border-line bg-card px-3 text-[13px] text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent"
+                        />
+                      )}
                     </div>
-                    {qbReady === false && (
+
+                    {target === 'qb' && qbReady === false && (
                       <p className="type-caption mt-2" style={{ color: 'var(--color-danger)' }}>
                         qBittorrent 未配置或不可达，推送可能失败（请先到设置中配置下载器）
                       </p>
                     )}
+                    {target === 'pan115' && pan115Ready === false && (
+                      <p className="type-caption mt-2" style={{ color: 'var(--color-danger)' }}>
+                        115 网盘未配置或登录态无效，请先到设置中填写 Cookie
+                      </p>
+                    )}
+
+                    {/* 115 种子文件勾选：选择离线下载的内容 */}
+                    {target === 'pan115' && torrentInfo && (
+                      <div
+                        className="mt-3 rounded-md border p-3"
+                        style={{ borderColor: 'var(--border-light)' }}
+                      >
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="type-caption text-txt-secondary">
+                            选择要离线下载的文件（已选 {selectedFiles.size}/{torrentInfo.files.length}）
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedFiles(new Set(torrentInfo.files.map((f) => f.index)))
+                              }
+                              className="type-caption text-accent hover:underline"
+                            >
+                              全选
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFiles(new Set())}
+                              className="type-caption text-txt-tertiary hover:underline"
+                            >
+                              清空
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedFiles(
+                                  new Set(torrentInfo.files.filter((f) => f.wanted !== -1).map((f) => f.index)),
+                                )
+                              }
+                              className="type-caption text-txt-tertiary hover:underline"
+                            >
+                              仅视频
+                            </button>
+                          </div>
+                        </div>
+
+                        <div
+                          className="no-scrollbar max-h-[180px] overflow-y-auto"
+                          style={{ borderTop: '1px solid var(--border-light)' }}
+                        >
+                          {torrentInfo.files.map((file) => {
+                            const checked = selectedFiles.has(file.index);
+                            return (
+                              <label
+                                key={`${file.index}-${file.path}`}
+                                className="flex cursor-pointer items-center gap-2 py-1.5"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSelectedFiles((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(file.index)) next.delete(file.index);
+                                      else next.add(file.index);
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
+                                />
+                                <span
+                                  className="min-w-0 flex-1 truncate text-[12px] text-txt-secondary"
+                                  title={file.path}
+                                >
+                                  {file.path}
+                                </span>
+                                <span className="shrink-0 text-[11px] tabular-nums text-txt-tertiary">
+                                  {formatBytes(file.size)}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            variant="filled"
+                            className="!min-h-[34px] !px-3 text-[12px]"
+                            loading={torrentBusy}
+                            disabled={selectedFiles.size === 0}
+                            onClick={() => void submitTorrentTo115()}
+                          >
+                            推送 {selectedFiles.size} 个文件到 115
+                          </Button>
+                          <Button
+                            variant="gray"
+                            className="!min-h-[34px] !px-3 text-[12px]"
+                            onClick={() => setTorrentInfo(null)}
+                          >
+                            取消
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {panelMsg && (
                       <p
                         className="type-caption mt-2"

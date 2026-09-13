@@ -110,13 +110,25 @@ export function getSettingsView(): Record<string, unknown> {
     qb_save_paths: getSetting('qb_save_paths'),
     qb_category_movie: getSetting('qb_category_movie').trim(),
     qb_category_tv: getSetting('qb_category_tv').trim(),
+    // 115 网盘：Cookie 敏感只给打码；目录与开关明文回显
+    pan115_cookie_masked: maskApiKey(getSetting('pan115_cookie')),
+    pan115_cookie_set: getSetting('pan115_cookie').trim().length > 0,
+    pan115_save_path: getSetting('pan115_save_path').trim(),
+    pan115_paths: getSetting('pan115_paths'),
+    pan115_save_path_movie: getSetting('pan115_save_path_movie').trim(),
+    pan115_save_path_tv: getSetting('pan115_save_path_tv').trim(),
+    pan115_folder_per_task: getSetting('pan115_folder_per_task') === '1',
     // hgeme 资源站：Cookie 属敏感信息，只给打码与 set 标志
     hgeme_cookie_masked: maskApiKey(getSetting('hgeme_cookie')),
     hgeme_cookie_set: getSetting('hgeme_cookie').trim().length > 0,
   };
 }
 
-/** qBittorrent 是否已配置（地址非空） */
 export function hasQbConfig(): boolean {
   return getSetting('qb_server_url').trim().length > 0;
+}
+
+/** 115 网盘是否已配置（Cookie 非空） */
+export function hasPan115Config(): boolean {
+  return getSetting('pan115_cookie').trim().length > 0;
 }

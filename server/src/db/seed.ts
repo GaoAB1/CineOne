@@ -53,6 +53,18 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   qb_category_tv: '',
   /** hgeme.com 资源站 Cookie（浏览器登录后复制；空串表示未启用该源） */
   hgeme_cookie: '',
+  /** 115 网盘 Cookie（浏览器登录 115.com 后复制 UID/CID/SEID 等；空串表示未启用 115 离线下载） */
+  pan115_cookie: '',
+  /** 115 离线下载默认保存目录 CID（空串表示根目录 0） */
+  pan115_save_path: '',
+  /** 115 预设目录列表（每行一个，格式「名称:CID」，推送弹层下拉选择） */
+  pan115_paths: '',
+  /** 115 电影默认离线目录（预设目录名或 CID；留空则用 pan115_save_path） */
+  pan115_save_path_movie: '',
+  /** 115 剧集默认离线目录（预设目录名或 CID；留空则用 pan115_save_path） */
+  pan115_save_path_tv: '',
+  /** 115 提交离线任务后是否在目标目录下新建同名子文件夹（'1' 开启，默认开启） */
+  pan115_folder_per_task: '1',
 };
 
 export function runSeed(): void {

@@ -11,6 +11,7 @@ import {
   fetchHgemeResources,
   fetchQbPaths,
   fetchQbStatus,
+  fetchPan115Status,
   pushResourceDownload,
   searchResources,
   type HgemeResources,
@@ -78,6 +79,7 @@ export default function ResourceSearchPage() {
   // ---- 推送到 qBittorrent ----
   const [qbPaths, setQbPaths] = useState<QbPaths | null>(null);
   const [qbReady, setQbReady] = useState<boolean | null>(null);
+  const [pan115Ready, setPan115Ready] = useState<boolean | null>(null);
   const [downloadTarget, setDownloadTarget] = useState<ResourceItem | null>(null);
   const defaultType: MediaType = searchParams.get('type') === 'tv' ? 'tv' : 'movie';
   const [dlType, setDlType] = useState<MediaType>(defaultType);
@@ -101,6 +103,21 @@ export default function ResourceSearchPage() {
       })
       .catch(() => {
         if (!cancelled) setQbReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 115 网盘可用性探测：未配置或登录态无效时隐藏 115 推送入口
+  useEffect(() => {
+    let cancelled = false;
+    fetchPan115Status()
+      .then((status) => {
+        if (!cancelled) setPan115Ready(status.configured && status.loggedIn);
+      })
+      .catch(() => {
+        if (!cancelled) setPan115Ready(false);
       });
     return () => {
       cancelled = true;
@@ -494,6 +511,7 @@ export default function ResourceSearchPage() {
               onFilterChange={setHgFilter}
               qbReady={qbReady}
               qbPaths={qbPaths}
+              pan115Ready={pan115Ready}
               defaultType={defaultType}
               onNotice={setDlMsg}
             />

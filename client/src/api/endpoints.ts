@@ -74,6 +74,14 @@ export interface SettingsView {
   // hgeme 资源站
   hgeme_cookie_masked: string;
   hgeme_cookie_set: boolean;
+  // 115 网盘（离线下载）
+  pan115_cookie_masked: string;
+  pan115_cookie_set: boolean;
+  pan115_save_path: string;
+  pan115_paths: string;
+  pan115_save_path_movie: string;
+  pan115_save_path_tv: string;
+  pan115_folder_per_task: boolean;
 }
 
 export function fetchSettings(): Promise<SettingsView> {
@@ -403,6 +411,165 @@ export function qbResume(hashes: string): Promise<{ resumed: boolean }> {
 
 export function qbDelete(hashes: string, deleteFiles = false): Promise<{ deleted: boolean }> {
   return request('/qb/delete', { method: 'POST', body: { hashes, delete_files: deleteFiles } });
+}
+
+// ---- 115 网盘离线下载 ----
+
+export interface Pan115Status {
+  configured: boolean;
+  reachable: boolean;
+  loggedIn: boolean;
+  username: string | null;
+  vip: boolean;
+  offlineQuota: { total: number; used: number; surplus: number } | null;
+  error: string | null;
+}
+
+export interface Pan115PathPreset {
+  name: string;
+  cid: string;
+}
+
+export interface Pan115Paths {
+  presets: Pan115PathPreset[];
+  defaultCid: string;
+  moviePath: string;
+  tvPath: string;
+  folderPerTask: boolean;
+}
+
+export interface Pan115DirEntry {
+  cid: string;
+  name: string;
+  isDir: boolean;
+  size: number;
+}
+
+export interface Pan115Task {
+  infoHash: string;
+  name: string;
+  size: number;
+  percentDone: number;
+  status: number;
+  statusText: string;
+  url: string;
+  fileId: string;
+  addTime: number;
+  lastUpdate: number;
+}
+
+export interface Pan115TorrentFile {
+  index: number;
+  path: string;
+  size: number;
+  wanted: number;
+}
+
+export interface Pan115TorrentInfo {
+  infoHash: string;
+  name: string;
+  size: number;
+  fileCount: number;
+  files: Pan115TorrentFile[];
+  torrentSha1: string;
+  pickCode: string;
+}
+
+export interface Pan115PushResult {
+  pushed: boolean;
+  target: string;
+  cid: string;
+  infoHash: string;
+  name: string;
+  selected?: number | 'auto';
+}
+
+export function fetchPan115Status(): Promise<Pan115Status> {
+  return request('/pan115/status');
+}
+
+export function fetchPan115Paths(): Promise<Pan115Paths> {
+  return request('/pan115/paths');
+}
+
+export function fetchPan115Dirs(cid = '0'): Promise<{ cid: string; entries: Pan115DirEntry[] }> {
+  return request('/pan115/dirs', { query: { cid } });
+}
+
+export function resolvePan115Path(path: string): Promise<{ path: string; cid: string }> {
+  return request('/pan115/resolve', { method: 'POST', body: { path } });
+}
+
+export function fetchPan115Tasks(): Promise<{ tasks: Pan115Task[] }> {
+  return request('/pan115/tasks');
+}
+
+export function deletePan115Tasks(
+  infoHashes: string[],
+  deleteFiles = false,
+): Promise<{ deleted: number; deleteFiles: boolean }> {
+  return request('/pan115/tasks/delete', {
+    method: 'POST',
+    body: { info_hashes: infoHashes, delete_files: deleteFiles },
+  });
+}
+
+/** 推送磁力 / 直链到 115 离线下载 */
+export function pushPan115Url(opts: {
+  url: string;
+  cid?: string;
+  dir?: string;
+  type?: 'movie' | 'tv';
+}): Promise<Pan115PushResult> {
+  return request('/pan115/url', {
+    method: 'POST',
+    body: { url: opts.url, cid: opts.cid, dir: opts.dir, type: opts.type },
+  });
+}
+
+/** 上传 .torrent 并解析文件树（不创建任务），用于推送到 115 前的文件勾选 */
+export function parsePan115Torrent(opts: {
+  filename: string;
+  base64: string;
+}): Promise<Pan115TorrentInfo> {
+  return request('/pan115/torrent/parse', {
+    method: 'POST',
+    body: { filename: opts.filename, torrent_base64: opts.base64 },
+  });
+}
+
+/** 由服务端抓取 .torrent 直链并交 115 解析文件树（用于先预览再勾选） */
+export function parsePan115TorrentFromUrl(opts: { url: string }): Promise<Pan115TorrentInfo> {
+  return request('/pan115/torrent/from-url', {
+    method: 'POST',
+    body: { url: opts.url },
+  });
+}
+
+/** 提交 BT 离线任务（wantedIndexes 为空则按 115 默认勾选） */
+export function addPan115Torrent(opts: {
+  info: Pan115TorrentInfo;
+  wantedIndexes?: number[];
+  cid?: string;
+  dir?: string;
+  type?: 'movie' | 'tv';
+  savePath?: string;
+}): Promise<Pan115PushResult> {
+  return request('/pan115/torrent/add', {
+    method: 'POST',
+    body: {
+      info_hash: opts.info.infoHash,
+      name: opts.info.name,
+      torrent_sha1: opts.info.torrentSha1,
+      pick_code: opts.info.pickCode,
+      files: opts.info.files,
+      wanted_indexes: opts.wantedIndexes,
+      cid: opts.cid,
+      dir: opts.dir,
+      type: opts.type,
+      save_path: opts.savePath,
+    },
+  });
 }
 
 export function fetchDetail(type: MediaType, id: number): Promise<DetailPayload> {
