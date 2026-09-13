@@ -14,6 +14,7 @@ import HomePage from './pages/HomePage';
 import ProviderBrowsePage from './pages/ProviderBrowsePage';
 import ResourceSearchPage from './pages/ResourceSearchPage';
 import DownloadsPage from './pages/DownloadsPage';
+import Pan115Page from './pages/Pan115Page';
 import DetailPage from './pages/DetailPage';
 import WatchlistPage from './pages/WatchlistPage';
 import SearchPage from './pages/SearchPage';
@@ -84,6 +85,7 @@ function AppRoutes() {
         <Route path="/providers/:regionKey/:providerKey" element={<ProviderBrowsePage />} />
         <Route path="/resources" element={<ResourceSearchPage />} />
         <Route path="/downloads" element={<DownloadsPage />} />
+        <Route path="/pan115" element={<Pan115Page />} />
       </Route>
 
       {/* 播放器：沉浸式全屏，不套 AppShell（无 TabBar） */}

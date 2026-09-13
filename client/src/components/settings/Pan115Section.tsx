@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import {
   fetchPan115Status,
   fetchSettings,
@@ -218,6 +219,12 @@ export default function Pan115Section() {
         <Button variant="gray" loading={testing} onClick={() => void test()}>
           测试连接
         </Button>
+        <Link to="/pan115">
+          <Button variant="tinted">
+            <i className="ri-list-check-2 text-[16px]" aria-hidden />
+            离线任务管理
+          </Button>
+        </Link>
       </div>
 
       {feedback && (

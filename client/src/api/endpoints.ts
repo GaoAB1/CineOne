@@ -452,10 +452,22 @@ export interface Pan115Task {
   percentDone: number;
   status: number;
   statusText: string;
+  /** 分组桶：downloading / completed / error */
+  bucket: Pan115TaskBucket;
   url: string;
   fileId: string;
   addTime: number;
   lastUpdate: number;
+}
+
+export type Pan115TaskBucket = 'downloading' | 'completed' | 'error';
+
+export interface Pan115TaskStats {
+  total: number;
+  downloading: number;
+  completed: number;
+  error: number;
+  totalSize: number;
 }
 
 export interface Pan115TorrentFile {
@@ -500,8 +512,12 @@ export function resolvePan115Path(path: string): Promise<{ path: string; cid: st
   return request('/pan115/resolve', { method: 'POST', body: { path } });
 }
 
-export function fetchPan115Tasks(): Promise<{ tasks: Pan115Task[] }> {
-  return request('/pan115/tasks');
+/** 离线任务列表（可选按分组筛选；stats 为全量统计，不受筛选影响） */
+export function fetchPan115Tasks(opts: { bucket?: Pan115TaskBucket } = {}): Promise<{
+  tasks: Pan115Task[];
+  stats: Pan115TaskStats;
+}> {
+  return request('/pan115/tasks', { query: { bucket: opts.bucket } });
 }
 
 export function deletePan115Tasks(
@@ -511,6 +527,17 @@ export function deletePan115Tasks(
   return request('/pan115/tasks/delete', {
     method: 'POST',
     body: { info_hashes: infoHashes, delete_files: deleteFiles },
+  });
+}
+
+/** 一键清理已完成（可选含失败）的离线任务 */
+export function clearPan115Tasks(opts: {
+  includeFailed?: boolean;
+  deleteFiles?: boolean;
+} = {}): Promise<{ deleted: number; includeFailed: boolean; deleteFiles: boolean }> {
+  return request('/pan115/tasks/clear', {
+    method: 'POST',
+    body: { include_failed: opts.includeFailed, delete_files: opts.deleteFiles },
   });
 }
 

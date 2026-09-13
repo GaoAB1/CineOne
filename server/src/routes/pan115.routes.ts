@@ -12,6 +12,7 @@ import { getSetting } from '../services/settingsService';
 import {
   addPan115Torrent,
   addPan115Url,
+  clearPan115Tasks,
   deletePan115Tasks,
   downloadTorrentByUrl,
   getPan115Status,
@@ -21,6 +22,8 @@ import {
   parsePresetPaths,
   resolvePan115CidByPath,
   resolvePresetCid,
+  summarizePan115Tasks,
+  type Pan115TaskBucket,
 } from '../services/pan115Service';
 
 const router = Router();
@@ -103,11 +106,19 @@ router.post(
   }),
 );
 
-/** GET /api/pan115/tasks —— 离线任务列表 */
+/**
+ * GET /api/pan115/tasks?bucket=downloading|completed|error
+ * 离线任务列表；带 bucket 时只返回该分组（下载中/已完成/异常）。
+ */
 router.get(
   '/tasks',
-  asyncHandler(async (_req, res) => {
-    ok(res, { tasks: await listPan115Tasks() });
+  asyncHandler(async (req, res) => {
+    const raw = typeof req.query.bucket === 'string' ? req.query.bucket.trim() : '';
+    const bucket = raw as Pan115TaskBucket | '';
+    const valid = bucket === 'downloading' || bucket === 'completed' || bucket === 'error';
+    const all = await listPan115Tasks();
+    const tasks = valid ? all.filter((task) => task.bucket === bucket) : all;
+    ok(res, { tasks, stats: summarizePan115Tasks(all) });
   }),
 );
 
@@ -125,6 +136,21 @@ router.post(
     const deleteFiles = raw.delete_files === true || raw.delete_files === 'true';
     await deletePan115Tasks(hashes, deleteFiles);
     ok(res, { deleted: hashes.length, deleteFiles });
+  }),
+);
+
+/**
+ * POST /api/pan115/tasks/clear { include_failed?: boolean, delete_files?: boolean }
+ * 一键清理：默认清理全部「已完成」任务，include_failed 为真时连失败任务一并清理。
+ */
+router.post(
+  '/tasks/clear',
+  asyncHandler(async (req, res) => {
+    const raw = (req.body ?? {}) as Record<string, unknown>;
+    const includeFailed = raw.include_failed === true || raw.include_failed === 'true';
+    const deleteFiles = raw.delete_files === true || raw.delete_files === 'true';
+    const deleted = await clearPan115Tasks({ includeFailed, deleteFiles });
+    ok(res, { deleted, includeFailed, deleteFiles });
   }),
 );
 

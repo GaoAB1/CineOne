@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/library', label: '媒体库', iconLine: 'ri-film-line', iconFill: 'ri-film-fill' },
   { to: '/watchlist', label: '追剧', iconLine: 'ri-tv-2-line', iconFill: 'ri-tv-2-fill' },
   { to: '/downloads', label: '下载', iconLine: 'ri-download-2-line', iconFill: 'ri-download-2-fill' },
+  { to: '/pan115', label: '115', iconLine: 'ri-cloud-line', iconFill: 'ri-cloud-fill' },
   { to: '/search', label: '搜索', iconLine: 'ri-search-line', iconFill: 'ri-search-fill' },
 ];
 

@@ -16,6 +16,9 @@ import {
   normalizeCookie,
   parsePresetPaths,
   resolvePresetCid,
+  summarizePan115Tasks,
+  taskBucket,
+  type Pan115Task,
 } from '../src/services/pan115Service';
 
 describe('pan115Service.normalizeCookie', () => {
@@ -79,6 +82,76 @@ describe('pan115Service.parsePresetPaths', () => {
 
   it('空配置返回空数组', () => {
     assert.deepEqual(parsePresetPaths(''), []);
+  });
+});
+
+describe('pan115Service.taskBucket / summarizePan115Tasks', () => {
+  it('状态码映射到分组桶', () => {
+    assert.equal(taskBucket(2), 'completed');
+    assert.equal(taskBucket(-1), 'error');
+    assert.equal(taskBucket(0), 'downloading');
+    assert.equal(taskBucket(1), 'downloading');
+  });
+
+  it('统计各分组数量与总大小', () => {
+    const tasks: Pan115Task[] = [
+      {
+        infoHash: 'a',
+        name: 'A',
+        size: 100,
+        percentDone: 1,
+        status: 2,
+        statusText: '已完成',
+        bucket: 'completed',
+        url: '',
+        fileId: '',
+        addTime: 0,
+        lastUpdate: 0,
+      },
+      {
+        infoHash: 'b',
+        name: 'B',
+        size: 200,
+        percentDone: 0.5,
+        status: 1,
+        statusText: '下载中',
+        bucket: 'downloading',
+        url: '',
+        fileId: '',
+        addTime: 0,
+        lastUpdate: 0,
+      },
+      {
+        infoHash: 'c',
+        name: 'C',
+        size: 300,
+        percentDone: 0,
+        status: -1,
+        statusText: '失败',
+        bucket: 'error',
+        url: '',
+        fileId: '',
+        addTime: 0,
+        lastUpdate: 0,
+      },
+    ];
+    assert.deepEqual(summarizePan115Tasks(tasks), {
+      total: 3,
+      downloading: 1,
+      completed: 1,
+      error: 1,
+      totalSize: 600,
+    });
+  });
+
+  it('空列表统计全为 0', () => {
+    assert.deepEqual(summarizePan115Tasks([]), {
+      total: 0,
+      downloading: 0,
+      completed: 0,
+      error: 0,
+      totalSize: 0,
+    });
   });
 });
 

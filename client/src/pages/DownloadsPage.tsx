@@ -191,6 +191,12 @@ export default function DownloadsPage() {
           <Button variant="gray" className="!min-h-[36px] !px-3 text-[13px]" onClick={() => void load()}>
             刷新
           </Button>
+          <Link to="/pan115">
+            <Button variant="gray" className="!min-h-[36px] !px-3 text-[13px]">
+              <i className="ri-cloud-line text-[15px]" aria-hidden />
+              115 离线下载
+            </Button>
+          </Link>
           <Link to="/settings">
             <Button variant="tinted" className="!min-h-[36px] !px-3 text-[13px]">
               <i className="ri-settings-4-line text-[15px]" aria-hidden />

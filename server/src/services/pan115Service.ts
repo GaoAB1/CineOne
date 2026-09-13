@@ -356,6 +356,8 @@ export interface Pan115Task {
   percentDone: number;
   status: number;
   statusText: string;
+  /** 分组桶：downloading / completed / error */
+  bucket: Pan115TaskBucket;
   url: string;
   fileId: string;
   addTime: number;
@@ -370,15 +372,34 @@ function taskStatusText(status: number): string {
   return '未知';
 }
 
+/** 任务分组桶：前端筛选与统计共用（与 DownloadsPage 的 Bucket 语义对齐） */
+export type Pan115TaskBucket = 'downloading' | 'completed' | 'error';
+
+export function taskBucket(status: number): Pan115TaskBucket {
+  if (status === 2) return 'completed';
+  if (status === -1) return 'error';
+  return 'downloading';
+}
+
 function mapTask(raw: any): Pan115Task {
   const status = Number(raw?.status ?? 0);
+  const size = Number(raw?.size ?? 0) || 0;
+  // 115 的 percentDone 在部分任务上缺省，用已下大小 / 总大小兜底推算
+  const rawPercent = Number(raw?.percentDone ?? raw?.percent_done ?? NaN);
+  const downloaded = Number(raw?.downloaded_size ?? raw?.downloadedSize ?? NaN);
+  let percentDone = Number.isFinite(rawPercent) ? rawPercent : 0;
+  if (!Number.isFinite(rawPercent) && Number.isFinite(downloaded) && size > 0) {
+    percentDone = downloaded / size;
+  }
+  if (status === 2) percentDone = 1;
   return {
     infoHash: String(raw?.info_hash ?? raw?.infoHash ?? ''),
     name: String(raw?.name ?? ''),
-    size: Number(raw?.size ?? 0) || 0,
-    percentDone: Number(raw?.percentDone ?? raw?.percent_done ?? 0) || 0,
+    size,
+    percentDone,
     status,
     statusText: taskStatusText(status),
+    bucket: taskBucket(status),
     url: String(raw?.url ?? ''),
     fileId: String(raw?.file_id ?? raw?.fileId ?? ''),
     addTime: Number(raw?.add_time ?? 0) || 0,
@@ -420,6 +441,53 @@ export async function deletePan115Tasks(
   data.flag = deleteFiles ? '1' : '0';
   const json = await postLixian('task_del', data);
   assertOk(json, '删除离线任务');
+}
+
+/** 任务统计（配合管理页顶部概览） */
+export interface Pan115TaskStats {
+  total: number;
+  downloading: number;
+  completed: number;
+  error: number;
+  totalSize: number;
+}
+
+export function summarizePan115Tasks(tasks: Pan115Task[]): Pan115TaskStats {
+  return tasks.reduce<Pan115TaskStats>(
+    (acc, task) => {
+      acc.total += 1;
+      acc[task.bucket] += 1;
+      acc.totalSize += task.size || 0;
+      return acc;
+    },
+    { total: 0, downloading: 0, completed: 0, error: 0, totalSize: 0 },
+  );
+}
+
+/**
+ * 清理已完成（或失败）的离线任务。
+ * 115 的 task_del 单次建议不超过 100 个 hash，这里分片提交。
+ * @returns 实际提交删除的任务数
+ */
+export async function clearPan115Tasks(opts: {
+  includeFailed?: boolean;
+  deleteFiles?: boolean;
+} = {}): Promise<number> {
+  const tasks = await listPan115Tasks();
+  const targets = tasks.filter(
+    (task) => task.bucket === 'completed' || (opts.includeFailed === true && task.bucket === 'error'),
+  );
+  if (targets.length === 0) return 0;
+
+  const CHUNK = 100;
+  for (let i = 0; i < targets.length; i += CHUNK) {
+    const slice = targets.slice(i, i + CHUNK);
+    await deletePan115Tasks(
+      slice.map((task) => task.infoHash),
+      opts.deleteFiles === true,
+    );
+  }
+  return targets.length;
 }
 
 export interface AddMagnetResult {
