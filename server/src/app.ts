@@ -49,6 +49,8 @@ export function createApp(): Express {
   app.use('/api/douban', doubanRoutes);
   app.use('/api/resources', resourcesRoutes);
   app.use('/api/qb', qbRoutes);
+  // 115：种子解析走 base64 JSON（8MB 种子 ≈ 10.7MB base64），单独放宽 body 限制
+  app.use('/api/pan115', express.json({ limit: '12mb' }), pan115Routes);
 
   // ---- 生产静态托管：server/dist → ../../client/dist ----
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');
