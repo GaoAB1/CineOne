@@ -108,6 +108,13 @@ describe('notifyService.isRecentlyDone（首轮补发窗口）', () => {
     assert.equal(isRecentlyDone((now - 14 * 60_000) / 1000, now), true);
     assert.equal(isRecentlyDone((now - 16 * 60_000) / 1000, now), false);
   });
+
+  it('毫秒时间戳（如 115 last_update）自动识别，不误乘 1000', () => {
+    // 3 分钟前，毫秒表示（>1e12）
+    assert.equal(isRecentlyDone(now - 3 * 60_000, now, WINDOW), true);
+    // 1 小时前，毫秒表示
+    assert.equal(isRecentlyDone(now - 60 * 60_000, now, WINDOW), false);
+  });
 });
 
 describe('barkService.sendBark 未配置路径', () => {

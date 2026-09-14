@@ -28,14 +28,16 @@ const DL_INITIAL_DELAY_MS = 30_000;
 const RECENT_DONE_WINDOW_MS = 15 * 60_000;
 
 /**
- * 完成时间是否落在通知窗口内（epoch 秒 → 毫秒对比；导出供单测）。
+ * 完成时间是否落在通知窗口内（导出供单测）。
+ * 兼容秒/毫秒时间戳：>1e12 视为毫秒（115 的 last_update 是毫秒），否则按秒 ×1000。
  * 背景：115 离线下载通常几分钟完成，等首轮快照时任务已是完成态，
  * 「状态翻转」检测会永久漏推；窗口内补发 + notify_state 去重解决。
  */
-export function isRecentlyDone(doneTsSec: number, nowMs: number, windowMs = RECENT_DONE_WINDOW_MS): boolean {
-  if (!Number.isFinite(doneTsSec) || doneTsSec <= 0) return false;
-  const doneMs = doneTsSec * 1000;
-  return doneMs > 0 && nowMs - doneMs >= 0 && nowMs - doneMs <= windowMs;
+export function isRecentlyDone(doneTs: number, nowMs: number, windowMs = RECENT_DONE_WINDOW_MS): boolean {
+  if (!Number.isFinite(doneTs) || doneTs <= 0) return false;
+  const doneMs = doneTs > 1e12 ? doneTs : doneTs * 1000;
+  const delta = nowMs - doneMs;
+  return delta >= 0 && delta <= windowMs;
 }
 
 /** qB 完成态判定：进度 100% 且不在下载/校验/移动类状态（导出供单测） */
@@ -113,7 +115,7 @@ async function checkPan115Downloads(): Promise<void> {
     return; // 115 拉取失败静默跳过
   }
   for (const t of tasks) {
-    const key = `dl:115:${t.infoHash}`;
+    const key = `dl:115:${t.infoHash.toLowerCase()}`;
     const done = t.bucket === 'completed';
     const prev = pan115Snapshot.get(key);
     // 通知条件：状态翻转；或首轮快照就是完成态且完成时间在窗口内（补发）。
@@ -230,20 +232,24 @@ async function runPan115Watch(): Promise<void> {
   } catch {
     return; // 本轮拉取失败静默跳过，下轮再试
   }
-  const byHash = new Map(tasks.map((t) => [t.infoHash, t]));
+  const byHash = new Map(
+    tasks.map((t) => [t.infoHash.toLowerCase(), t]),
+  );
   const now = Date.now();
 
-  for (const [hash, entry] of [...pan115Watch.entries()]) {
+  for (const [rawHash, entry] of [...pan115Watch.entries()]) {
+    // add 响应与 task_lists 的 info_hash 可能大小写不同，统一小写匹配
+    const hash = rawHash.toLowerCase();
     const task = byHash.get(hash);
     if (!task) continue; // 任务尚未出现在列表（排队中），继续等
     if (task.bucket === 'downloading') {
       if (now - entry.startedAt > PAN115_WATCH_TIMEOUT_MS) {
-        pan115Watch.delete(hash); // 超时放弃跟随，回退全局轮询兜底
+        pan115Watch.delete(rawHash); // 超时放弃跟随，回退全局轮询兜底
       }
       continue;
     }
-    pan115Watch.delete(hash);
-    // 与全局轮询共用去重 key：谁先检测到谁推，不会重复
+    pan115Watch.delete(rawHash);
+    // 与全局轮询共用去重 key（统一小写）：谁先检测到谁推，不会重复
     if (markNotifiedOnce(`dl:115:${hash}`)) {
       const name = task.name || entry.name;
       if (task.bucket === 'completed') {
