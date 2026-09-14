@@ -205,6 +205,72 @@ async function checkAirs(): Promise<void> {
   await checkWatchingAirs(today);
 }
 
+// ---- 115 任务跟随检测（推送按钮触发，20s 即时盯梢） ----
+
+const PAN115_WATCH_INTERVAL_MS = 20_000;
+const PAN115_WATCH_TIMEOUT_MS = 30 * 60_000;
+
+interface WatchEntry {
+  name: string;
+  startedAt: number;
+}
+
+const pan115Watch = new Map<string, WatchEntry>();
+let pan115WatchTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * 跟随检测一轮：所有被关注任务合并为一次 listPan115Tasks 全量查询
+ * （不按任务数放大请求），完成/失败即推送并移出；全部结束自动停表。
+ */
+async function runPan115Watch(): Promise<void> {
+  if (pan115Watch.size === 0) return;
+  let tasks;
+  try {
+    tasks = await listPan115Tasks();
+  } catch {
+    return; // 本轮拉取失败静默跳过，下轮再试
+  }
+  const byHash = new Map(tasks.map((t) => [t.infoHash, t]));
+  const now = Date.now();
+
+  for (const [hash, entry] of [...pan115Watch.entries()]) {
+    const task = byHash.get(hash);
+    if (!task) continue; // 任务尚未出现在列表（排队中），继续等
+    if (task.bucket === 'downloading') {
+      if (now - entry.startedAt > PAN115_WATCH_TIMEOUT_MS) {
+        pan115Watch.delete(hash); // 超时放弃跟随，回退全局轮询兜底
+      }
+      continue;
+    }
+    pan115Watch.delete(hash);
+    // 与全局轮询共用去重 key：谁先检测到谁推，不会重复
+    if (markNotifiedOnce(`dl:115:${hash}`)) {
+      const name = task.name || entry.name;
+      if (task.bucket === 'completed') {
+        await sendBark('115 离线下载完成', name);
+      } else if (task.bucket === 'error') {
+        await sendBark('115 离线任务失败', `${name}（可在 115 客户端查看原因）`);
+      }
+    }
+  }
+
+  if (pan115Watch.size === 0 && pan115WatchTimer) {
+    clearInterval(pan115WatchTimer);
+    pan115WatchTimer = null;
+  }
+}
+
+/** 注册一个 115 任务进入即时跟随（推送成功后调用；重复注册幂等） */
+export function watchPan115Task(infoHash: string, name: string): void {
+  const hash = infoHash.trim();
+  if (!hash) return;
+  pan115Watch.set(hash, { name: name.trim(), startedAt: Date.now() });
+  if (!pan115WatchTimer) {
+    pan115WatchTimer = setInterval(() => void runPan115Watch(), PAN115_WATCH_INTERVAL_MS);
+    pan115WatchTimer.unref?.();
+  }
+}
+
 // ---- 定时器 ----
 
 let dlTimer: ReturnType<typeof setInterval> | null = null;
@@ -238,7 +304,9 @@ export function stopNotifyTimers(): void {
   if (dlTimer) clearInterval(dlTimer);
   if (airTimer) clearInterval(airTimer);
   if (dlInitialTimer) clearTimeout(dlInitialTimer);
+  if (pan115WatchTimer) clearInterval(pan115WatchTimer);
   dlTimer = null;
   airTimer = null;
   dlInitialTimer = null;
+  pan115WatchTimer = null;
 }

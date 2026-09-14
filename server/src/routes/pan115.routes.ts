@@ -9,6 +9,7 @@ import { asyncHandler, ok, ApiError } from '../middleware/errorHandler';
 import { authRequired } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimit';
 import { getSetting } from '../services/settingsService';
+import { watchPan115Task } from '../services/notifyService';
 import {
   addPan115Torrent,
   addPan115Url,
@@ -172,6 +173,8 @@ router.post(
       type: optionalString(raw.type, 20),
     });
     const result = await addPan115Url({ url, cid });
+    // 推送成功 → 注册即时跟随检测，完成后立即 Bark 通知（无需等全局轮询）
+    watchPan115Task(result.infoHash, result.name || url.slice(0, 80));
     ok(res, {
       pushed: true,
       target: '115',
@@ -263,6 +266,8 @@ router.post(
       cid,
       savePath: folderPerTask ? optionalString(raw.save_path, 300) || name : '',
     });
+    // 推送成功 → 注册即时跟随检测，完成后立即 Bark 通知
+    watchPan115Task(result.infoHash, result.name || name);
     ok(res, {
       pushed: true,
       target: '115',
