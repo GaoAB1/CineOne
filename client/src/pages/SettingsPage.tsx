@@ -1,6 +1,6 @@
 /**
- * 设置页：分类标签布局（媒体服务 / Emby / MoviePilot / 下载器 / 115 网盘 / 资源站 / 账户 / 用户管理）。
- * 移动端 Tab 可横滑；用户管理仅管理员可见；非管理员读取设置返回 1003 时展示只读提示。
+ * 设置页：分类标签布局（媒体服务 / Emby / MoviePilot / 下载器 / 115 网盘 / 资源站 / 通知推送 / 账户 / 用户管理）。
+ * 移动端 Tab 可横滑（两侧箭头按钮辅助）；用户管理仅管理员可见；非管理员读取设置返回 1003 时展示只读提示。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,12 +16,22 @@ import MoviePilotSection from '../components/settings/MoviePilotSection';
 import QbittorrentSection from '../components/settings/QbittorrentSection';
 import HgemeSection from '../components/settings/HgemeSection';
 import Pan115Section from '../components/settings/Pan115Section';
+import BarkSection from '../components/settings/BarkSection';
 import ChangePasswordSection from '../components/settings/ChangePasswordSection';
 import UserManageSection from '../components/settings/UserManageSection';
 import { useAuth } from '../stores/AuthContext';
 import { useTheme } from '../stores/ThemeContext';
 
-type SettingsTab = 'media' | 'emby' | 'moviepilot' | 'qb' | 'pan115' | 'sources' | 'account' | 'users';
+type SettingsTab =
+  | 'media'
+  | 'emby'
+  | 'moviepilot'
+  | 'qb'
+  | 'pan115'
+  | 'sources'
+  | 'notify'
+  | 'account'
+  | 'users';
 
 const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
   { key: 'media', label: '媒体服务', icon: 'ri-key-2-line' },
@@ -30,6 +40,7 @@ const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
   { key: 'qb', label: '下载器', icon: 'ri-download-2-line' },
   { key: 'pan115', label: '115 网盘', icon: 'ri-cloud-line' },
   { key: 'sources', label: '资源站', icon: 'ri-database-2-line' },
+  { key: 'notify', label: '通知推送', icon: 'ri-notification-3-line' },
   { key: 'account', label: '账户', icon: 'ri-user-3-line' },
   { key: 'users', label: '用户管理', icon: 'ri-team-line' },
 ];
@@ -333,6 +344,8 @@ export default function SettingsPage() {
       {tab === 'pan115' && <Pan115Section />}
 
       {tab === 'sources' && <HgemeSection />}
+
+      {tab === 'notify' && <BarkSection />}
 
       {tab === 'account' && (
         <>

@@ -88,6 +88,22 @@ function normalize(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+/**
+ * 名称匹配：精确命中，或双向包含（覆盖 'iQiyi, Inc.'、'Tencent Video 腾讯视频' 等
+ * TMDB 命名变体）。过短别名（≤3 字符，如 'max'/'芒果'/'b站'）只做精确匹配，避免误配。
+ */
+function nameMatches(name: string, aliases: string[]): boolean {
+  const n = normalize(name);
+  if (!n) return false;
+  return aliases.some((alias) => {
+    const a = normalize(alias);
+    if (!a) return false;
+    if (n === a) return true;
+    if (a.length <= 3) return false;
+    return n.includes(a) || a.includes(n);
+  });
+}
+
 /** 列表缓存：<regionKey, {ts, group}>，TTL 6 小时 */
 const listCache = new Map<string, { ts: number; group: ProviderRegionGroup }>();
 const LIST_TTL_MS = 6 * 60 * 60 * 1000;
@@ -100,33 +116,53 @@ const SAMPLE_COUNT = 6;
 async function fetchProviderSamples(
   region: RegionDef,
   providerId: number,
+  preferred: 'movie' | 'tv' = 'movie',
 ): Promise<ProviderSample[]> {
   const cached = samplesCache.get(providerId);
   if (cached && Date.now() - cached.ts < SAMPLES_TTL_MS) return cached.samples;
-  const payload = await discoverProviderItems({
-    regionKey: region.key,
-    providerId,
-    mediaType: 'movie',
-    page: 1,
-    pageSize: SAMPLE_COUNT,
-  });
-  const samples: ProviderSample[] = payload.results.slice(0, SAMPLE_COUNT).map((m) => ({
-    tmdbId: m.tmdbId,
-    mediaType: m.mediaType,
-    posterPath: m.posterPath ?? null,
-  }));
+
+  // 优先用平台命中的媒体类型拉样例，为空再回退另一种
+  const pull = async (mediaType: 'movie' | 'tv'): Promise<ProviderSample[]> => {
+    const payload = await discoverProviderItems({
+      regionKey: region.key,
+      providerId,
+      mediaType,
+      page: 1,
+      pageSize: SAMPLE_COUNT,
+    });
+    return payload.results.slice(0, SAMPLE_COUNT).map((m) => ({
+      tmdbId: m.tmdbId,
+      mediaType: m.mediaType,
+      posterPath: m.posterPath ?? null,
+    }));
+  };
+
+  let samples: ProviderSample[] = [];
+  try {
+    samples = await pull(preferred);
+  } catch {
+    samples = [];
+  }
+  if (samples.length === 0) {
+    const fallback: 'movie' | 'tv' = preferred === 'movie' ? 'tv' : 'movie';
+    try {
+      samples = await pull(fallback);
+    } catch {
+      samples = [];
+    }
+  }
   samplesCache.set(providerId, { ts: Date.now(), samples });
   return samples;
 }
 
-async function buildProvider(region: RegionDef, target: ProviderTarget, hit: TmdbProviderItem): Promise<ProviderEntry> {
+async function buildProvider(
+  region: RegionDef,
+  target: ProviderTarget,
+  hit: TmdbProviderItem,
+  source: 'movie' | 'tv' = 'movie',
+): Promise<ProviderEntry> {
   const id = hit.provider_id as number;
-  let samples: ProviderSample[] = [];
-  try {
-    samples = await fetchProviderSamples(region, id);
-  } catch {
-    samples = [];
-  }
+  const samples = await fetchProviderSamples(region, id, source);
   return {
     key: target.key,
     id,
@@ -140,23 +176,46 @@ async function fetchRegionGroup(region: RegionDef): Promise<ProviderRegionGroup>
   const cached = listCache.get(region.key);
   if (cached && Date.now() - cached.ts < LIST_TTL_MS) return cached.group;
 
-  const data = await tmdbGet<{ results?: TmdbProviderItem[] }>(
-    '/watch/providers/movie',
-    { watch_region: region.key.toUpperCase() },
-  );
-  const all = data.results ?? [];
+  // 同时拉 movie 与 tv 的平台列表：CN 区平台（爱奇艺/腾讯视频等）大量只出现在
+  // tv 的 watch providers 里，只查 movie 会导致国区整组匹配为空。
+  const [movieData, tvData] = await Promise.all([
+    tmdbGet<{ results?: TmdbProviderItem[] }>('/watch/providers/movie', {
+      watch_region: region.key.toUpperCase(),
+    }),
+    tmdbGet<{ results?: TmdbProviderItem[] }>('/watch/providers/tv', {
+      watch_region: region.key.toUpperCase(),
+    }),
+  ]);
+
+  // 按 provider_id 去重合并（movie 命中的优先保留，样例也优先用 movie 拉）
+  const byId = new Map<number, { item: TmdbProviderItem; source: 'movie' | 'tv' }>();
+  for (const item of movieData.results ?? []) {
+    if (typeof item.provider_id === 'number') byId.set(item.provider_id, { item, source: 'movie' });
+  }
+  for (const item of tvData.results ?? []) {
+    if (typeof item.provider_id === 'number' && !byId.has(item.provider_id)) {
+      byId.set(item.provider_id, { item, source: 'tv' });
+    }
+  }
+
   const matched = region.targets
     .map((target) => {
-      const hit = all.find((p) => {
-        const name = typeof p.provider_name === 'string' ? p.provider_name : '';
-        return target.aliases.includes(normalize(name));
-      });
-      return { target, hit };
+      let found: { item: TmdbProviderItem; source: 'movie' | 'tv' } | undefined;
+      for (const entry of byId.values()) {
+        const name = typeof entry.item.provider_name === 'string' ? entry.item.provider_name : '';
+        if (nameMatches(name, target.aliases)) {
+          found = entry;
+          break;
+        }
+      }
+      return { target, found };
     })
-    .filter((m): m is { target: ProviderTarget; hit: TmdbProviderItem } => Boolean(m.hit));
+    .filter((m): m is { target: ProviderTarget; found: { item: TmdbProviderItem; source: 'movie' | 'tv' } } =>
+      Boolean(m.found),
+    );
 
   const providers = await Promise.all(
-    matched.map(({ target, hit }) => buildProvider(region, target, hit!)),
+    matched.map(({ target, found }) => buildProvider(region, target, found!.item, found!.source)),
   );
   const group: ProviderRegionGroup = { key: region.key, label: region.label, providers };
   listCache.set(region.key, { ts: Date.now(), group });

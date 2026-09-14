@@ -64,4 +64,11 @@ describe('app 路由挂载：/api/pan115', () => {
     });
     assert.equal(res.status, 200);
   });
+
+  it('未登录访问 /api/notify/test 返回 401（notify 路由已挂载，而非 404）', async () => {
+    const res = await fetch(`${baseUrl}/api/notify/test`, { method: 'POST' });
+    assert.equal(res.status, 401);
+    const body = (await res.json()) as { code: number };
+    assert.equal(body.code, 1002);
+  });
 });

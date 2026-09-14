@@ -95,6 +95,8 @@ export function createWatchItem(
     mediaType: MediaType;
     title?: string;
     posterPath?: string | null;
+    /** 初始状态，默认 watching；「想看」入口传 planned */
+    status?: WatchStatus;
     seasonsSnapshot?: SeasonSnapshotEntry[];
   },
 ): WatchItem {
@@ -105,6 +107,8 @@ export function createWatchItem(
   if (mediaType !== 'movie' && mediaType !== 'tv') {
     throw new ApiError(1001, 'mediaType 必须为 movie 或 tv', 400);
   }
+  const initialStatus: WatchStatus =
+    input.status != null && VALID_STATUSES.includes(input.status) ? input.status : 'watching';
 
   const totalEpisodes =
     Array.isArray(seasonsSnapshot) && seasonsSnapshot.length > 0
@@ -117,7 +121,7 @@ export function createWatchItem(
       .prepare(
         `INSERT INTO watchlist
            (user_id, tmdb_id, media_type, title, poster_path, status, current_season, current_episode, seasons_snapshot, total_episodes, added_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'watching', 1, 0, ?, ?, datetime('now'), datetime('now'))`,
+         VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, datetime('now'), datetime('now'))`,
       )
       .run(
         userId,
@@ -125,6 +129,7 @@ export function createWatchItem(
         mediaType,
         title ?? '未命名条目',
         posterPath ?? null,
+        initialStatus,
         Array.isArray(seasonsSnapshot) && seasonsSnapshot.length > 0
           ? JSON.stringify(seasonsSnapshot)
           : null,

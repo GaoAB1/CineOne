@@ -6,7 +6,6 @@ import { request } from './http';
 import type {
   AdminUserView,
   CalendarPayload,
-  CreateUpcomingInput,
   DetailPayload,
   EmbyPlayUrl,
   EmbyLoginResult,
@@ -26,7 +25,6 @@ import type {
   RatingSource,
   SubscribeInput,
   SubscribeResult,
-  UpcomingItem,
   UserPublic,
   WatchItem,
   WatchStatus,
@@ -82,6 +80,10 @@ export interface SettingsView {
   pan115_save_path_movie: string;
   pan115_save_path_tv: string;
   pan115_folder_per_task: boolean;
+  // Bark 推送
+  bark_server_url: string;
+  bark_device_key_masked: string;
+  bark_device_key_set: boolean;
 }
 
 export function fetchSettings(): Promise<SettingsView> {
@@ -664,6 +666,8 @@ export interface CreateWatchInput {
   media_type: MediaType;
   title?: string;
   poster_path?: string;
+  /** 初始状态，默认 watching；详情页「想看」入口传 planned */
+  status?: WatchStatus;
   seasons_snapshot?: { seasonNumber: number; episodeCount: number }[];
 }
 
@@ -759,7 +763,7 @@ export function reportEmbyPlayback(
   });
 }
 
-// ---- calendar / upcoming ----
+// ---- calendar ----
 
 export function fetchCalendar(): Promise<CalendarPayload> {
   return request('/calendar');
@@ -770,16 +774,15 @@ export function fetchTmdbUpcoming(): Promise<MediaItem[]> {
   return request('/tmdb/upcoming');
 }
 
-export function listUpcoming(): Promise<UpcomingItem[]> {
-  return request('/upcoming');
+// ---- notify（Bark 推送） ----
+
+export interface BarkTestResult {
+  ok: boolean;
+  message: string;
 }
 
-export function createUpcoming(input: CreateUpcomingInput): Promise<UpcomingItem> {
-  return request('/upcoming', { method: 'POST', body: input });
-}
-
-export function deleteUpcoming(id: number): Promise<null> {
-  return request(`/upcoming/${id}`, { method: 'DELETE' });
+export function testBarkPush(): Promise<BarkTestResult> {
+  return request('/notify/test', { method: 'POST' });
 }
 
 // ---- moviepilot ----

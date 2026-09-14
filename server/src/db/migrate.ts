@@ -101,6 +101,11 @@ const DDL_STATEMENTS: string[] = [
     fetched_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (tmdb_id, media_type)
   )`,
+  // ---- Bark 推送去重状态（避免重启后重复推送/漏推） ----
+  `CREATE TABLE IF NOT EXISTS notify_state (
+    key         TEXT PRIMARY KEY,
+    notified_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 export function runMigrate(): void {
@@ -109,6 +114,14 @@ export function runMigrate(): void {
     for (const ddl of DDL_STATEMENTS) {
       db.exec(ddl);
     }
+    // 一次性迁移：upcoming「想看」并入 watchlist（status='planned'）。
+    // 条目以 UNIQUE(user_id, tmdb_id, media_type) 去重，已存在则跳过；upcoming 表保留不删。
+    db.exec(`
+      INSERT OR IGNORE INTO watchlist
+        (user_id, tmdb_id, media_type, title, poster_path, status, current_season, current_episode, added_at, updated_at)
+      SELECT user_id, tmdb_id, media_type, title, poster_path, 'planned', 1, 0, added_at, datetime('now')
+      FROM upcoming
+    `);
   });
   runAll();
 }

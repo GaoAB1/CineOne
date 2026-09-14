@@ -12,9 +12,6 @@ import {
   patchWatchItem,
   deleteWatchItem,
   fetchEmbyPlayUrl,
-  listUpcoming,
-  createUpcoming,
-  deleteUpcoming,
   fetchMoviepilotSubscribed,
   subscribeMoviepilot,
 } from '../api/endpoints';
@@ -66,10 +63,6 @@ export default function DetailPage() {
 
   // Emby 播放跳转（404 / 未配置时为 null，不渲染按钮）
   const [embyPlayUrl, setEmbyPlayUrl] = useState<string | null>(null);
-
-  // 想看（未上映条目）：upcomingId 存在即已加入
-  const [upcomingId, setUpcomingId] = useState<number | null>(null);
-  const [upcomingBusy, setUpcomingBusy] = useState(false);
 
   // MoviePilot 订阅：MVP 仅单向订阅
   const [mpSubscribed, setMpSubscribed] = useState(false);
@@ -159,25 +152,6 @@ export default function DetailPage() {
       })
       .catch(() => {
         if (!cancelled) setEmbyPlayUrl(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mediaType, tmdbId]);
-
-  // ---- 想看状态加载（未上映条目） ----
-  useEffect(() => {
-    if (!mediaType || !Number.isInteger(tmdbId)) return;
-    let cancelled = false;
-    setUpcomingId(null);
-    listUpcoming()
-      .then((list) => {
-        if (cancelled) return;
-        const found = list.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType);
-        setUpcomingId(found?.id ?? null);
-      })
-      .catch(() => {
-        // 静默：想看模块失败不影响详情展示
       });
     return () => {
       cancelled = true;
@@ -276,43 +250,25 @@ export default function DetailPage() {
     }
   };
 
-  // ---- 想看动作（未上映条目） ----
-  const addToUpcoming = async (): Promise<void> => {
+  // ---- 想看动作（未上映条目，写入追剧列表 planned 状态） ----
+  const addToWatchlistPlanned = async (): Promise<void> => {
     if (!mediaType || !detail) return;
-    setUpcomingBusy(true);
+    setWatchBusy(true);
+    setWatchMsg(null);
     try {
-      const created = await createUpcoming({
+      await createWatchItem({
         tmdb_id: tmdbId,
         media_type: mediaType,
         title: detail.title,
         poster_path: detail.posterPath,
-        release_date: detail.releaseDate,
+        status: 'planned',
       });
-      setUpcomingId(created.id);
-    } catch {
-      // 4090 视为重复加入，同样收敛为已加入态
-      try {
-        const list = await listUpcoming();
-        const found = list.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType);
-        if (found) setUpcomingId(found.id);
-      } catch {
-        // 静默：保持当前态即可
-      }
+      setWatchMsg('已加入想看');
+      await loadWatchEntry();
+    } catch (err) {
+      setWatchMsg(err instanceof ApiClientError && err.code === 4090 ? '已在追剧列表中' : '加入想看失败');
     } finally {
-      setUpcomingBusy(false);
-    }
-  };
-
-  const removeFromUpcoming = async (): Promise<void> => {
-    if (upcomingId == null) return;
-    setUpcomingBusy(true);
-    try {
-      await deleteUpcoming(upcomingId);
-      setUpcomingId(null);
-    } catch {
-      // 静默：失败时保留已加入态，下次可重试取消
-    } finally {
-      setUpcomingBusy(false);
+      setWatchBusy(false);
     }
   };
 
@@ -522,25 +478,14 @@ export default function DetailPage() {
         {!watchEntry ? (
           <div className="flex flex-wrap items-center gap-3">
             {isUnreleased ? (
-              upcomingId == null ? (
-                <Button
-                  variant="tinted"
-                  loading={upcomingBusy}
-                  icon={<i className="ri-bookmark-line" aria-hidden />}
-                  onClick={() => void addToUpcoming()}
-                >
-                  想看
-                </Button>
-              ) : (
-                <Button
-                  variant="gray"
-                  loading={upcomingBusy}
-                  icon={<i className="ri-bookmark-fill" aria-hidden />}
-                  onClick={() => void removeFromUpcoming()}
-                >
-                  已加入想看 · 点击取消
-                </Button>
-              )
+              <Button
+                variant="tinted"
+                loading={watchBusy}
+                icon={<i className="ri-bookmark-line" aria-hidden />}
+                onClick={() => void addToWatchlistPlanned()}
+              >
+                想看
+              </Button>
             ) : (
               <Button variant="filled" loading={watchBusy} onClick={() => void addToWatchlist()}>
                 <i className="ri-add-line" aria-hidden /> 加入追剧

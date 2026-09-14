@@ -121,6 +121,10 @@ export function getSettingsView(): Record<string, unknown> {
     // hgeme 资源站：Cookie 属敏感信息，只给打码与 set 标志
     hgeme_cookie_masked: maskApiKey(getSetting('hgeme_cookie')),
     hgeme_cookie_set: getSetting('hgeme_cookie').trim().length > 0,
+    // Bark 推送：设备 Key 属敏感信息打码；服务器地址明文回显
+    bark_server_url: getSetting('bark_server_url').trim(),
+    bark_device_key_masked: maskApiKey(getSetting('bark_device_key')),
+    bark_device_key_set: getSetting('bark_device_key').trim().length > 0,
   };
 }
 
@@ -131,4 +135,9 @@ export function hasQbConfig(): boolean {
 /** 115 网盘是否已配置（Cookie 非空） */
 export function hasPan115Config(): boolean {
   return getSetting('pan115_cookie').trim().length > 0;
+}
+
+/** Bark 推送是否可用（设备 Key 非空即可用，服务器地址有默认值） */
+export function hasBarkConfig(): boolean {
+  return getSetting('bark_device_key').trim().length > 0;
 }

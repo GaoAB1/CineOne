@@ -65,6 +65,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   pan115_save_path_tv: '',
   /** 115 提交离线任务后是否在目标目录下新建同名子文件夹（'1' 开启，默认开启） */
   pan115_folder_per_task: '1',
+  /** Bark 推送服务器基址（自建可改，如 https://api.day.app） */
+  bark_server_url: 'https://api.day.app',
+  /** Bark 设备 Key（Bark App 首页可复制；空串表示未启用推送） */
+  bark_device_key: '',
 };
 
 export function runSeed(): void {

@@ -169,27 +169,6 @@ export interface CalendarPayload {
   lastRefresh: string | null;
 }
 
-export interface UpcomingItem {
-  id: number;
-  tmdbId: number;
-  mediaType: MediaType;
-  title: string;
-  posterPath?: string | null;
-  releaseDate?: string | null;
-  /** 备注（详情页加入想看时可填，可为空） */
-  note?: string | null;
-  /** 加入时间 ISO 字符串 */
-  addedAt?: string | null;
-}
-
-export interface CreateUpcomingInput {
-  tmdb_id: number;
-  media_type: MediaType;
-  title: string;
-  poster_path?: string;
-  release_date?: string;
-}
-
 // ---- 用户管理（admin） ----
 
 /** 管理员视角的用户视图（含创建时间） */

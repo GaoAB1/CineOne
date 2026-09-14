@@ -51,6 +51,7 @@ interface CreateBody {
   media_type?: unknown;
   title?: unknown;
   poster_path?: unknown;
+  status?: unknown;
   seasons_snapshot?: unknown;
 }
 
@@ -83,6 +84,13 @@ router.post(
       posterPath:
         typeof body.poster_path === 'string' && body.poster_path
           ? body.poster_path
+          : undefined,
+      status:
+        body.status === 'watching' ||
+        body.status === 'finished' ||
+        body.status === 'dropped' ||
+        body.status === 'planned'
+          ? body.status
           : undefined,
       seasonsSnapshot: parseSnapshotInput(body.seasons_snapshot),
     });

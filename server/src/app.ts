@@ -18,13 +18,13 @@ import ratingsRoutes from './routes/ratings.routes';
 import watchlistRoutes from './routes/watchlist.routes';
 import embyRoutes from './routes/emby.routes';
 import calendarRoutes from './routes/calendar.routes';
-import upcomingRoutes from './routes/upcoming.routes';
 import moviepilotRoutes from './routes/moviepilot.routes';
 import usersRoutes from './routes/users.routes';
 import doubanRoutes from './routes/douban.routes';
 import resourcesRoutes from './routes/resources.routes';
 import qbRoutes from './routes/qb.routes';
 import pan115Routes from './routes/pan115.routes';
+import notifyRoutes from './routes/notify.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -43,7 +43,6 @@ export function createApp(): Express {
   app.use('/api/watchlist', watchlistRoutes);
   app.use('/api/emby', embyRoutes);
   app.use('/api/calendar', calendarRoutes);
-  app.use('/api/upcoming', upcomingRoutes);
   app.use('/api/moviepilot', moviepilotRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/douban', doubanRoutes);
@@ -51,6 +50,7 @@ export function createApp(): Express {
   app.use('/api/qb', qbRoutes);
   // 115：种子解析走 base64 JSON（8MB 种子 ≈ 10.7MB base64），单独放宽 body 限制
   app.use('/api/pan115', express.json({ limit: '12mb' }), pan115Routes);
+  app.use('/api/notify', notifyRoutes);
 
   // ---- 生产静态托管：server/dist → ../../client/dist ----
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');
