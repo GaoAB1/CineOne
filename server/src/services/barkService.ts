@@ -21,6 +21,16 @@ export interface BarkSendResult {
   message: string;
 }
 
+/**
+ * Bark 响应体成功判定：官方成功返回 { code: 200, message: 'success' }，
+ * 兼容旧版 code 0；无 code 字段时以 HTTP 状态为准（视为成功）。
+ * （导出供单测；曾误判 code!==0 为失败，导致「推送被拒绝：success」的假报错）
+ */
+export function isBarkAccepted(json: { code?: number; message?: string } | null): boolean {
+  if (!json || typeof json.code !== 'number') return true;
+  return json.code === 200 || json.code === 0;
+}
+
 /** 发送一条 Bark 推送；未配置时静默跳过（返回 ok:false 且不抛错） */
 export async function sendBark(title: string, body: string): Promise<BarkSendResult> {
   const deviceKey = getSetting('bark_device_key').trim();
@@ -37,9 +47,8 @@ export async function sendBark(title: string, body: string): Promise<BarkSendRes
       return { ok: false, message: `Bark 推送失败（HTTP ${res.status}）` };
     }
     const json = (await res.json().catch(() => null)) as { code?: number; message?: string } | null;
-    // Bark 成功返回 { code: 0, message: 'success' }
-    if (json && typeof json.code === 'number' && json.code !== 0) {
-      return { ok: false, message: `Bark 推送被拒绝：${json.message ?? json.code}` };
+    if (!isBarkAccepted(json)) {
+      return { ok: false, message: `Bark 推送被拒绝：${json?.message ?? json?.code ?? res.status}` };
     }
     return { ok: true, message: '推送成功' };
   } catch (err) {

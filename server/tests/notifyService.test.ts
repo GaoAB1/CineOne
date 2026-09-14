@@ -13,7 +13,7 @@ import { getDb } from '../src/db/database';
 import { runMigrate } from '../src/db/migrate';
 import { runSeed } from '../src/db/seed';
 import { setSetting } from '../src/services/settingsService';
-import { sendBark } from '../src/services/barkService';
+import { sendBark, isBarkAccepted } from '../src/services/barkService';
 import { qbTorrentDone } from '../src/services/notifyService';
 
 describe('migrate：upcoming → watchlist(planned) 一次性迁移', () => {
@@ -96,5 +96,24 @@ describe('barkService.sendBark 未配置路径', () => {
     const result = await sendBark('标题', '内容');
     assert.equal(result.ok, false);
     assert.match(result.message, /未配置/);
+  });
+});
+
+describe('barkService.isBarkAccepted（响应判定）', () => {
+  it('Bark 官方成功响应 code=200 message=success 判为成功', () => {
+    assert.equal(isBarkAccepted({ code: 200, message: 'success' }), true);
+  });
+
+  it('旧版 code=0 判为成功', () => {
+    assert.equal(isBarkAccepted({ code: 0, message: 'success' }), true);
+  });
+
+  it('无 code 字段时以 HTTP 状态为准（判为成功）', () => {
+    assert.equal(isBarkAccepted({ message: 'success' }), true);
+    assert.equal(isBarkAccepted(null), true);
+  });
+
+  it('非 200/0 的 code 判为拒绝', () => {
+    assert.equal(isBarkAccepted({ code: 400, message: 'Bad Key' }), false);
   });
 });
