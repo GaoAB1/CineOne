@@ -14,7 +14,7 @@ import { runMigrate } from '../src/db/migrate';
 import { runSeed } from '../src/db/seed';
 import { setSetting } from '../src/services/settingsService';
 import { sendBark, isBarkAccepted } from '../src/services/barkService';
-import { qbTorrentDone } from '../src/services/notifyService';
+import { qbTorrentDone, isRecentlyDone } from '../src/services/notifyService';
 
 describe('migrate：upcoming → watchlist(planned) 一次性迁移', () => {
   before(() => {
@@ -82,6 +82,31 @@ describe('notifyService.qbTorrentDone', () => {
     assert.equal(qbTorrentDone('error', 1), false);
     assert.equal(qbTorrentDone('moving', 1), false);
     assert.equal(qbTorrentDone('checkingUP', 1), false);
+  });
+});
+
+describe('notifyService.isRecentlyDone（首轮补发窗口）', () => {
+  const now = Date.parse('2026-09-14T16:20:00+08:00');
+  const WINDOW = 15 * 60_000;
+
+  it('完成时间在窗口内（如 3 分钟前）判为刚完成', () => {
+    assert.equal(isRecentlyDone((now - 3 * 60_000) / 1000, now, WINDOW), true);
+    assert.equal(isRecentlyDone((now - WINDOW) / 1000, now, WINDOW), true);
+  });
+
+  it('完成时间早于窗口（如 1 小时前）不补发', () => {
+    assert.equal(isRecentlyDone((now - 60 * 60_000) / 1000, now, WINDOW), false);
+  });
+
+  it('未来时间与非法值不补发', () => {
+    assert.equal(isRecentlyDone((now + 60_000) / 1000, now, WINDOW), false);
+    assert.equal(isRecentlyDone(0, now, WINDOW), false);
+    assert.equal(isRecentlyDone(NaN, now, WINDOW), false);
+  });
+
+  it('默认窗口 15 分钟', () => {
+    assert.equal(isRecentlyDone((now - 14 * 60_000) / 1000, now), true);
+    assert.equal(isRecentlyDone((now - 16 * 60_000) / 1000, now), false);
   });
 });
 

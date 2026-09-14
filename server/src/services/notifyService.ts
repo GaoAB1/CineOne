@@ -24,6 +24,19 @@ import { tmdbGet } from './tmdbService';
 const DL_INTERVAL_MS = 5 * 60_000;
 const AIR_INTERVAL_MS = 30 * 60_000;
 const DL_INITIAL_DELAY_MS = 30_000;
+/** 首轮快照时：完成时间在该窗口内的任务视为「刚完成」，补发通知（覆盖 115 等快完成场景） */
+const RECENT_DONE_WINDOW_MS = 15 * 60_000;
+
+/**
+ * 完成时间是否落在通知窗口内（epoch 秒 → 毫秒对比；导出供单测）。
+ * 背景：115 离线下载通常几分钟完成，等首轮快照时任务已是完成态，
+ * 「状态翻转」检测会永久漏推；窗口内补发 + notify_state 去重解决。
+ */
+export function isRecentlyDone(doneTsSec: number, nowMs: number, windowMs = RECENT_DONE_WINDOW_MS): boolean {
+  if (!Number.isFinite(doneTsSec) || doneTsSec <= 0) return false;
+  const doneMs = doneTsSec * 1000;
+  return doneMs > 0 && nowMs - doneMs >= 0 && nowMs - doneMs <= windowMs;
+}
 
 /** qB 完成态判定：进度 100% 且不在下载/校验/移动类状态（导出供单测） */
 export function qbTorrentDone(state: string, progress: number): boolean {
@@ -74,7 +87,12 @@ async function checkQbDownloads(): Promise<void> {
     const key = `dl:qb:${t.hash}`;
     const done = qbTorrentDone(t.state, t.progress);
     const prev = qbSnapshot.get(key);
-    if (done && prev && !prev.done && markNotifiedOnce(key)) {
+    // 通知条件：状态翻转；或首轮快照就是完成态且完成时间在窗口内（补发）
+    const shouldNotify =
+      done &&
+      ((prev && !prev.done) || (!prev && isRecentlyDone(t.completionOn, Date.now()))) &&
+      markNotifiedOnce(key);
+    if (shouldNotify) {
       await sendBark('qB 下载完成', t.name);
     }
     qbSnapshot.set(key, { done, name: t.name });
@@ -98,7 +116,13 @@ async function checkPan115Downloads(): Promise<void> {
     const key = `dl:115:${t.infoHash}`;
     const done = t.bucket === 'completed';
     const prev = pan115Snapshot.get(key);
-    if (done && prev && !prev.done && markNotifiedOnce(key)) {
+    // 通知条件：状态翻转；或首轮快照就是完成态且完成时间在窗口内（补发）。
+    // 115 离线任务常在轮询间隔内完成，首轮即 completed，仅靠状态翻转会永久漏推。
+    const shouldNotify =
+      done &&
+      ((prev && !prev.done) || (!prev && isRecentlyDone(t.lastUpdate, Date.now()))) &&
+      markNotifiedOnce(key);
+    if (shouldNotify) {
       await sendBark('115 离线下载完成', t.name);
     }
     pan115Snapshot.set(key, { done, name: t.name });

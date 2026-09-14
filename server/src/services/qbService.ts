@@ -164,6 +164,8 @@ export interface QbTorrent {
   savePath: string;
   category: string;
   addedOn: number;
+  /** 完成时间（epoch 秒；0 表示尚未完成） */
+  completionOn: number;
   numSeeds: number;
   numLeeches: number;
   downloaded: number;
@@ -182,6 +184,7 @@ interface RawTorrent {
   save_path?: string;
   category?: string;
   added_on?: number;
+  completion_on?: number;
   num_seeds?: number;
   num_leechs?: number;
   downloaded?: number;
@@ -211,6 +214,7 @@ export async function listTorrents(): Promise<QbTorrent[]> {
       savePath: t.save_path ?? '',
       category: t.category ?? '',
       addedOn: t.added_on ?? 0,
+      completionOn: t.completion_on ?? 0,
       numSeeds: t.num_seeds ?? 0,
       numLeeches: t.num_leechs ?? 0,
       downloaded: t.downloaded ?? 0,
