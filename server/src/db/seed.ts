@@ -69,6 +69,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   bark_server_url: 'https://api.day.app',
   /** Bark 设备 Key（Bark App 首页可复制；空串表示未启用推送） */
   bark_device_key: '',
+  /** 媒体重命名：媒体目录列表 JSON（[{type:'movie'|'tv', path:'...'}]） */
+  renamer_media_dirs: '',
+  /** 媒体重命名模式：file=原地重命名 / full=按 Emby 规范整理目录结构 */
+  renamer_mode: 'file',
 };
 
 export function runSeed(): void {

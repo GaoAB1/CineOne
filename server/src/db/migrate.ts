@@ -106,6 +106,50 @@ const DDL_STATEMENTS: string[] = [
     key         TEXT PRIMARY KEY,
     notified_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  // ---- 媒体重命名：条目与操作日志（源自 Media-Renamer 项目合并） ----
+  `CREATE TABLE IF NOT EXISTS media_items (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    type          TEXT NOT NULL CHECK (type IN ('movie','tv')),
+    path          TEXT NOT NULL,
+    orig_path     TEXT,
+    name          TEXT NOT NULL,
+    year          INTEGER,
+    season        INTEGER,
+    ep_start      INTEGER,
+    ep_end        INTEGER,
+    ep_name       TEXT,
+    ep_date       TEXT,
+    resolution    TEXT,
+    version       TEXT,
+    extension     TEXT,
+    is_extra      INTEGER NOT NULL DEFAULT 0,
+    tmdb_id       INTEGER,
+    imdb_id       TEXT,
+    tmdb_title    TEXT,
+    tmdb_original_title TEXT,
+    tmdb_year     INTEGER,
+    tmdb_poster   TEXT,
+    tmdb_overview TEXT,
+    tmdb_kind     TEXT,
+    match_method  TEXT,
+    status        TEXT NOT NULL DEFAULT 'unmatched'
+                  CHECK (status IN ('unmatched','matched','renamed','error')),
+    new_path      TEXT,
+    renamed_at    TEXT,
+    matched_at    TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (path)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_media_items_status ON media_items(status)`,
+  `CREATE TABLE IF NOT EXISTS rename_logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id    INTEGER,
+    old_path   TEXT,
+    new_path   TEXT,
+    status     TEXT NOT NULL,
+    message    TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 export function runMigrate(): void {

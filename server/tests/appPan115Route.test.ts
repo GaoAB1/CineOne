@@ -71,4 +71,11 @@ describe('app 路由挂载：/api/pan115', () => {
     const body = (await res.json()) as { code: number };
     assert.equal(body.code, 1002);
   });
+
+  it('未登录访问 /api/renamer/items 返回 401（renamer 路由已挂载，而非 404）', async () => {
+    const res = await fetch(`${baseUrl}/api/renamer/items`);
+    assert.equal(res.status, 401);
+    const body = (await res.json()) as { code: number };
+    assert.equal(body.code, 1002);
+  });
 });

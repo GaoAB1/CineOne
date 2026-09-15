@@ -25,6 +25,7 @@ import resourcesRoutes from './routes/resources.routes';
 import qbRoutes from './routes/qb.routes';
 import pan115Routes from './routes/pan115.routes';
 import notifyRoutes from './routes/notify.routes';
+import renamerRoutes from './routes/renamer.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -51,6 +52,7 @@ export function createApp(): Express {
   // 115：种子解析走 base64 JSON（8MB 种子 ≈ 10.7MB base64），单独放宽 body 限制
   app.use('/api/pan115', express.json({ limit: '12mb' }), pan115Routes);
   app.use('/api/notify', notifyRoutes);
+  app.use('/api/renamer', renamerRoutes);
 
   // ---- 生产静态托管：server/dist → ../../client/dist ----
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');

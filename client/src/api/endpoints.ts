@@ -785,6 +785,126 @@ export function testBarkPush(): Promise<BarkTestResult> {
   return request('/notify/test', { method: 'POST' });
 }
 
+// ---- renamer（媒体重命名） ----
+
+export interface RenamerMediaDir {
+  type: 'movie' | 'tv';
+  path: string;
+}
+
+export interface RenamerItem {
+  id: number;
+  type: 'movie' | 'tv';
+  path: string;
+  name: string;
+  year: number | null;
+  season: number | null;
+  epStart: number | null;
+  epEnd: number | null;
+  epName: string | null;
+  epDate: string | null;
+  resolution: string | null;
+  version: string | null;
+  extension: string | null;
+  isExtra: boolean;
+  tmdbId: number | null;
+  tmdbTitle: string | null;
+  tmdbYear: number | null;
+  tmdbPoster: string | null;
+  matchMethod: string | null;
+  status: string;
+  newPath: string | null;
+}
+
+export interface RenamerScanState {
+  running: boolean;
+  progress: number;
+  total: number;
+  found: number;
+  message: string;
+}
+
+export interface RenamerTmdbHit {
+  id: number;
+  title: string;
+  original_title: string;
+  year: number | null;
+  overview: string;
+  poster: string | null;
+  kind: 'movie' | 'tv';
+}
+
+export interface RenamePlanEntry {
+  id: number;
+  oldPath: string;
+  newPath: string;
+}
+
+export interface RenameExecuteResult {
+  renamed: number;
+  failed: number;
+  removedDirs: number;
+  results: RenamePlanEntry[];
+  errors: Array<{ id: number; message: string; oldPath?: string }>;
+}
+
+export function fetchRenamerSettings(): Promise<{ dirs: RenamerMediaDir[]; mode: string }> {
+  return request('/renamer/settings');
+}
+
+export function saveRenamerSettings(input: {
+  dirs?: RenamerMediaDir[];
+  mode?: string;
+}): Promise<{ dirs: RenamerMediaDir[]; mode: string }> {
+  return request('/renamer/settings', { method: 'PUT', body: input });
+}
+
+export function listRenamerDirs(path?: string): Promise<{ path: string; parent: string | null; dirs: string[] }> {
+  return request('/renamer/dirs', { query: { path } });
+}
+
+export function startRenamerScan(): Promise<{ ok: boolean; message: string }> {
+  return request('/renamer/scan', { method: 'POST' });
+}
+
+export function fetchRenamerScanState(): Promise<RenamerScanState> {
+  return request('/renamer/scan/state');
+}
+
+export function listRenamerItems(opts: { status?: string; type?: string } = {}): Promise<{ items: RenamerItem[] }> {
+  return request('/renamer/items', { query: { status: opts.status, type: opts.type } });
+}
+
+export function searchRenamerTmdb(q: string, kind: 'movie' | 'tv', year?: number): Promise<{ results: RenamerTmdbHit[] }> {
+  return request('/renamer/search', { query: { q, kind, year } });
+}
+
+export function autoMatchRenamerItem(id: number): Promise<{ item: RenamerItem }> {
+  return request(`/renamer/items/${id}/auto-match`, { method: 'POST' });
+}
+
+export function manualMatchRenamerItem(id: number, tmdbId: number, kind: 'movie' | 'tv'): Promise<{ item: RenamerItem }> {
+  return request(`/renamer/items/${id}/match`, { method: 'POST', body: { tmdb_id: tmdbId, kind } });
+}
+
+export function batchMatchRenamerItems(ids: number[]): Promise<{ matched: number; failed: number; errors: Array<{ id: number; message: string }> }> {
+  return request('/renamer/match/batch', { method: 'POST', body: { ids } });
+}
+
+export function previewRenamer(ids: number[]): Promise<{ plan: RenamePlanEntry[]; mode: string }> {
+  return request('/renamer/rename/preview', { method: 'POST', body: { ids } });
+}
+
+export function executeRenamer(plan: RenamePlanEntry[]): Promise<RenameExecuteResult> {
+  return request('/renamer/rename/execute', { method: 'POST', body: { plan } });
+}
+
+export function listRenamerLogs(): Promise<{
+  logs: Array<{ id: number; itemId: number | null; oldPath: string | null; newPath: string | null; status: string; message: string | null; createdAt: string }>;
+}> {
+  return request('/renamer/logs');
+}
+
 // ---- moviepilot ----
 
 export function fetchMoviepilotStatus(): Promise<MoviePilotStatus> {

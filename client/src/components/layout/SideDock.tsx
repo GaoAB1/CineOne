@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/watchlist', label: '追剧', iconLine: 'ri-tv-2-line', iconFill: 'ri-tv-2-fill' },
   { to: '/downloads', label: '下载', iconLine: 'ri-download-2-line', iconFill: 'ri-download-2-fill' },
   { to: '/pan115', label: '115 离线', iconLine: 'ri-cloud-line', iconFill: 'ri-cloud-fill' },
+  { to: '/renamer', label: '重命名', iconLine: 'ri-input-cursor-move', iconFill: 'ri-input-cursor-move' },
   { to: '/search', label: '搜索', iconLine: 'ri-search-line', iconFill: 'ri-search-fill' },
 ];
 
