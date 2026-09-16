@@ -125,6 +125,9 @@ export function getSettingsView(): Record<string, unknown> {
     bark_server_url: getSetting('bark_server_url').trim(),
     bark_device_key_masked: maskApiKey(getSetting('bark_device_key')),
     bark_device_key_set: getSetting('bark_device_key').trim().length > 0,
+    // 网络代理：地址明文回显（非密钥）
+    proxy_url: getSetting('proxy_url').trim(),
+    proxy_resource_sites: getSetting('proxy_resource_sites') === '1',
   };
 }
 
@@ -140,4 +143,9 @@ export function hasPan115Config(): boolean {
 /** Bark 推送是否可用（设备 Key 非空即可用，服务器地址有默认值） */
 export function hasBarkConfig(): boolean {
   return getSetting('bark_device_key').trim().length > 0;
+}
+
+/** 代理地址是否已配置 */
+export function hasProxyUrl(): boolean {
+  return getSetting('proxy_url').trim().length > 0;
 }

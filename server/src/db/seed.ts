@@ -73,6 +73,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   renamer_media_dirs: '',
   /** 媒体重命名模式：file=原地重命名 / full=按 Emby 规范整理目录结构 */
   renamer_mode: 'file',
+  /** 网络代理地址（如 http://127.0.0.1:7890；空串表示不走代理）。仅作用于 TMDB；资源站按开关可选 */
+  proxy_url: '',
+  /** 资源站（hgeme）是否走网络代理（'1' 走代理；TMDB 恒走代理，其他服务恒不走） */
+  proxy_resource_sites: '0',
 };
 
 export function runSeed(): void {

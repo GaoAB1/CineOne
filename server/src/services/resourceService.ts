@@ -8,6 +8,7 @@
  */
 
 import { ApiError } from '../middleware/errorHandler';
+import { proxyDispatcherFor } from './proxyAgent';
 import { HGEME_CATEGORIES, hgemeConfigured, searchHgeme, type HgemeSearchItem } from './hgemeService';
 
 const SITE_BASE = 'https://1lou.cc';
@@ -196,7 +197,8 @@ export async function fetchThreadAttachments(tid: string): Promise<ResourceAttac
         Accept: 'text/html,application/xhtml+xml',
         'Accept-Language': 'zh-CN,zh;q=0.9',
       },
-    });
+      ...(proxyDispatcherFor('resource') ? { dispatcher: proxyDispatcherFor('resource') } : {}),
+    } as RequestInit);
   } catch {
     throw new ApiError(2005, '抓取资源帖子超时，请稍后重试', 504);
   }
@@ -218,7 +220,8 @@ export async function downloadTorrent(attachment: ResourceAttachment): Promise<T
         Accept: '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9',
       },
-    });
+      ...(proxyDispatcherFor('resource') ? { dispatcher: proxyDispatcherFor('resource') } : {}),
+    } as RequestInit);
   } catch {
     throw new ApiError(2005, '下载种子文件超时，请稍后重试', 504);
   }
@@ -423,7 +426,8 @@ async function fetchSearchPage(keyword: string, page: number): Promise<ResourceS
         Accept: 'text/html,application/xhtml+xml',
         'Accept-Language': 'zh-CN,zh;q=0.9',
       },
-    });
+      ...(proxyDispatcherFor('resource') ? { dispatcher: proxyDispatcherFor('resource') } : {}),
+    } as RequestInit);
   } catch {
     throw new ApiError(2003, '资源站访问超时或网络不可达，请稍后重试', 504);
   }

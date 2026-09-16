@@ -8,6 +8,7 @@ import {
   hasTmdbApiKey,
   getSetting,
 } from './settingsService';
+import { proxyDispatcherFor } from './proxyAgent';
 import type {
   DetailPayload,
   HomeSection,
@@ -40,7 +41,8 @@ export async function fetchExternalIds(
     const res = await fetch(url, {
       signal: AbortSignal.timeout(EXTERNAL_IDS_TIMEOUT_MS),
       headers: { Accept: 'application/json' },
-    });
+      ...(proxyDispatcherFor('tmdb') ? { dispatcher: proxyDispatcherFor('tmdb') } : {}),
+    } as RequestInit);
     if (!res.ok) return null;
     const body = (await res.json()) as ExternalIdsResponse;
     const imdb = typeof body.imdb_id === 'string' ? body.imdb_id.trim() : '';
@@ -104,7 +106,8 @@ export async function tmdbGet<T>(pathName: string, params: Record<string, string
     const res = await fetch(url, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: { Accept: 'application/json' },
-    });
+      ...(proxyDispatcherFor('tmdb') ? { dispatcher: proxyDispatcherFor('tmdb') } : {}),
+    } as RequestInit);
     if (!res.ok) {
       throw new ApiError(2002, `TMDB 请求失败（HTTP ${res.status}），请检查 Key 是否有效`, 502);
     }

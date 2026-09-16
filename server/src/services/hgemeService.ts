@@ -16,6 +16,7 @@
 
 import { ApiError } from '../middleware/errorHandler';
 import { getSetting } from './settingsService';
+import { proxyDispatcherFor } from './proxyAgent';
 
 const SITE = 'https://www.hgeme.com';
 const UA =
@@ -90,6 +91,8 @@ export async function solvePow(N: string, x: string, t: number): Promise<string>
 }
 
 async function rawFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  // 资源站代理走不走由设置开关控制（proxy_resource_sites），默认直连
+  const dispatcher = proxyDispatcherFor('resource');
   try {
     return await fetch(`${SITE}${path}`, {
       ...init,
@@ -103,7 +106,8 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
         ...(jar.browser_verified ? { Cookie: cookieHeader() } : {}),
         ...(init.headers ?? {}),
       },
-    });
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit);
   } catch {
     throw baseError('无法连接 hgeme.com，请检查网络', 504);
   }

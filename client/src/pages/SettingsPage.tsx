@@ -101,6 +101,11 @@ export default function SettingsPage() {
   const [savingTtl, setSavingTtl] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // 网络代理（媒体服务 tab）：仅作用于 TMDB；资源站按开关可选
+  const [proxyUrlInput, setProxyUrlInput] = useState('');
+  const [proxyResSites, setProxyResSites] = useState(false);
+  const [savingProxy, setSavingProxy] = useState(false);
+
   // loading 结束、页签栏渲染后才绑定监听（Spinner 阶段 ref 为空）
   useEffect(() => {
     if (loading) return;
@@ -122,6 +127,8 @@ export default function SettingsPage() {
       const view = await fetchSettings();
       setSettings(view);
       setTtlInput(String(view.ratings_ttl_hours));
+      setProxyUrlInput(view.proxy_url ?? '');
+      setProxyResSites(view.proxy_resource_sites ?? false);
     } catch (err) {
       // 非管理员会得到 1003：此时展示只读提示
       setLoadError(
@@ -176,6 +183,23 @@ export default function SettingsPage() {
       setNotice({ ok: false, text: err instanceof ApiClientError ? err.message : '保存失败' });
     } finally {
       setSavingTtl(false);
+    }
+  };
+
+  const saveProxy = async (): Promise<void> => {
+    setSavingProxy(true);
+    setNotice(null);
+    try {
+      const view = await updateSettings({
+        proxy_url: proxyUrlInput.trim(),
+        proxy_resource_sites: proxyResSites ? '1' : '0',
+      });
+      setSettings(view);
+      setNotice({ ok: true, text: '网络代理设置已保存' });
+    } catch (err) {
+      setNotice({ ok: false, text: err instanceof ApiClientError ? err.message : '保存失败' });
+    } finally {
+      setSavingProxy(false);
     }
   };
 
@@ -329,6 +353,42 @@ export default function SettingsPage() {
               </div>
               <p className="type-caption mt-3 text-txt-tertiary">
                 默认 72 小时；过期后在访问详情页时回源刷新。
+              </p>
+            </Section>
+          )}
+
+          {/* 网络代理 */}
+          {!loadError && (
+            <Section title="网络代理" icon="ri-global-line">
+              <div className="grid gap-4">
+                <InputField
+                  label="代理服务器地址（仅 TMDB 走代理）"
+                  value={proxyUrlInput}
+                  onChange={(e) => setProxyUrlInput(e.target.value)}
+                  placeholder="如 http://127.0.0.1:7890（留空则直连）"
+                  hint="TMDB 访问困难时填写；留空表示所有 TMDB 请求直连"
+                />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-body">资源站走代理</p>
+                    <p className="type-caption mt-0.5 text-txt-tertiary">
+                      资源搜索站点是否也经代理访问（默认直连）
+                    </p>
+                  </div>
+                  <Switch
+                    checked={proxyResSites}
+                    onChange={() => setProxyResSites((v) => !v)}
+                    label="资源站走代理"
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <Button variant="gray" loading={savingProxy} onClick={() => void saveProxy()}>
+                  保存代理设置
+                </Button>
+              </div>
+              <p className="type-caption mt-3 text-txt-tertiary">
+                代理范围仅限 TMDB 与（可选的）资源站；115 / qBittorrent / MoviePilot / Emby / Bark 等本地或局域网服务始终直连。
               </p>
             </Section>
           )}

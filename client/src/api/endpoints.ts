@@ -84,6 +84,9 @@ export interface SettingsView {
   bark_server_url: string;
   bark_device_key_masked: string;
   bark_device_key_set: boolean;
+  // 网络代理
+  proxy_url: string;
+  proxy_resource_sites: boolean;
 }
 
 export function fetchSettings(): Promise<SettingsView> {
