@@ -812,7 +812,10 @@ export function executeRename(plan: Array<{ id: number; newPath: string }>): Ren
   for (const p of plan) {
     const item = db.prepare('SELECT * FROM media_items WHERE id = ?').get(p.id) as MediaItemRow | undefined;
     if (!item) {
-      result.errors.push({ id: p.id, message: '记录不存在' });
+      // 记录不存在（如预览与执行之间重新扫描导致 id 变化）也要留痕，便于排查
+      logStmt.run(p.id, null, p.newPath, 'error', '记录不存在（可能已重新扫描，请刷新后重试）');
+      db.prepare(`UPDATE media_items SET status = 'error' WHERE id = ?`).run(p.id);
+      result.errors.push({ id: p.id, message: '记录不存在（可能已重新扫描，请刷新后重试）' });
       result.failed++;
       continue;
     }

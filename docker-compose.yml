@@ -10,8 +10,13 @@ services:
       # 生产环境强烈建议显式注入 JWT_SECRET；缺省时首次启动自动生成并持久化到数据卷
       # - JWT_SECRET=change-me-to-a-long-random-string
       - NODE_ENV=production
+      # 媒体重命名需要写权限：将 PUID/PGID 设为 NAS 媒体目录属主（群晖 `id <用户>` 查询，常见 1026:100）
+      # - PUID=1026
+      # - PGID=100
     volumes:
       - cineone-data:/app/data
+      # 媒体重命名：挂载你的媒体库（容器内路径在「重命名」页用目录选择器定位）
+      # - /vol1/media:/media
 
 volumes:
   cineone-data:

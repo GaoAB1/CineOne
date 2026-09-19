@@ -387,7 +387,10 @@ export default function RenamerPage() {
       const res = await executeRenamer(plan);
       setPreview(null);
       setChecked(new Set());
-      setExecResult(`重命名完成：成功 ${res.renamed}，失败 ${res.failed}，清理空目录 ${res.removedDirs}`);
+      setExecResult(
+        `重命名完成：成功 ${res.renamed}，失败 ${res.failed}，清理空目录 ${res.removedDirs}` +
+          (res.errors.length > 0 ? `。失败原因：${res.errors.map((e) => `「${e.message}」`).join('；')}` : ''),
+      );
       await loadItems();
       void loadLogs();
     } catch (err) {
