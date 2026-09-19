@@ -146,7 +146,7 @@ router.post(
     const ids = idArray(bodyOf(req).ids, 'ids');
     const { plan, mode } = buildPreview(ids);
     if (plan.length === 0) {
-      throw new ApiError(1001, '所选条目均未匹配 TMDB，无法生成重命名计划', 400);
+      throw new ApiError(1001, '所选条目均无法生成重命名计划', 400);
     }
     ok(res, { plan, mode });
   }),

@@ -4,7 +4,7 @@
  * Emby 规范重命名预览 → 执行 + 空目录清理 → 操作日志。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   batchMatchRenamerItems,
   autoMatchRenamerItem,
@@ -398,6 +398,39 @@ export default function RenamerPage() {
   const filtered = (items ?? []).filter((i) => filterStatus === 'all' || i.status === filterStatus);
   const matchedCount = (items ?? []).filter((i) => i.tmdbId).length;
 
+  // 按原文件夹分组展示（解决长平铺列表里找不到条目的问题）
+  const groups = useMemo(() => {
+    const map = new Map<string, RenamerItem[]>();
+    for (const it of filtered) {
+      const cut = Math.max(it.path.lastIndexOf('/'), it.path.lastIndexOf('\\'));
+      const dir = cut > 0 ? it.path.slice(0, cut) : it.path;
+      const arr = map.get(dir);
+      if (arr) arr.push(it);
+      else map.set(dir, [it]);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+  const groupAllChecked = (group: RenamerItem[]): boolean =>
+    group.length > 0 && group.every((i) => checked.has(i.id));
+
+  const toggleGroup = (group: RenamerItem[]): void => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      const allIn = groupAllChecked(group);
+      for (const i of group) {
+        if (allIn) next.delete(i.id);
+        else next.add(i.id);
+      }
+      return next;
+    });
+  };
+
+  const basename = (p: string): string => {
+    const cut = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    return cut > 0 ? p.slice(cut + 1) : p;
+  };
+
   return (
     <div className="mx-auto max-w-[860px]">
       {/* ---- 设置：媒体目录 + 命名模式 ---- */}
@@ -543,57 +576,80 @@ export default function RenamerPage() {
             {items.length === 0 ? '暂无条目，先配置目录并扫描' : '该分类下没有条目'}
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {filtered.map((it) => (
-              <div
-                key={it.id}
-                className="flex items-center gap-3 rounded-md px-3 py-2.5"
-                style={{ background: 'var(--color-bg-secondary)' }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked.has(it.id)}
-                  onChange={() => toggleCheck(it.id)}
-                  aria-label={`选择 ${it.name}`}
-                  className="h-4 w-4 shrink-0"
-                />
-                <span className="type-caption w-[46px] shrink-0 rounded-pill text-center" style={{ background: 'var(--color-bg-card)' }}>
-                  {it.type === 'tv' ? '剧集' : '电影'}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] text-txt-primary" title={it.path}>{it.name}</span>
-                  <span className="type-caption text-txt-tertiary">
-                    {it.type === 'tv' && it.season != null
-                      ? it.epDate
-                        ? it.epDate
-                        : `S${String(it.season).padStart(2, '0')}${it.epStart != null ? `E${String(it.epStart).padStart(2, '0')}` : ''}`
-                      : it.year ?? '—'}
-                    {it.version ? ` · ${it.version}` : ''}
-                    {it.tmdbId ? ` · tmdbid=${it.tmdbId}` : ''}
+          <div className="flex flex-col gap-4">
+            {groups.map(([dir, group]) => (
+              <div key={dir}>
+                {/* 组头：原文件夹 + 组全选 */}
+                <div className="mb-1.5 flex items-center gap-2 px-1">
+                  <input
+                    type="checkbox"
+                    checked={groupAllChecked(group)}
+                    onChange={() => toggleGroup(group)}
+                    aria-label={`全选 ${basename(dir)} 组`}
+                    className="h-4 w-4 shrink-0"
+                  />
+                  <i className="ri-folder-3-line text-[16px]" style={{ color: 'var(--color-accent)' }} aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-txt-secondary" title={dir}>
+                    {basename(dir)}
                   </span>
-                </span>
-                <span
-                  className="type-caption shrink-0 rounded-pill px-2 py-0.5"
-                  style={
-                    it.status === 'renamed'
-                      ? { background: 'rgba(52,199,89,0.15)', color: 'var(--color-success)' }
-                      : it.tmdbId
-                        ? { background: 'rgba(124,58,237,0.12)', color: 'var(--color-accent)' }
-                        : { background: 'var(--color-bg-card)', color: 'var(--text-tertiary)' }
-                  }
-                >
-                  {it.status === 'renamed' ? '已重命名' : it.tmdbId ? '已匹配' : '未匹配'}
-                </span>
-                {!it.tmdbId && (
-                  <>
-                    <Button variant="gray" loading={busyId === it.id} onClick={() => void autoMatchOne(it.id)}>
-                      自动
-                    </Button>
-                    <Button variant="plain" onClick={() => setMatchItem(it)}>
-                      手动
-                    </Button>
-                  </>
-                )}
+                  <span className="type-caption shrink-0 text-txt-tertiary">{group.length} 项</span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {group.map((it) => (
+                    <div
+                      key={it.id}
+                      className="flex items-center gap-3 rounded-md px-3 py-2.5"
+                      style={{ background: 'var(--color-bg-secondary)' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked.has(it.id)}
+                        onChange={() => toggleCheck(it.id)}
+                        aria-label={`选择 ${it.name}`}
+                        className="h-4 w-4 shrink-0"
+                      />
+                      <span className="type-caption w-[46px] shrink-0 rounded-pill text-center" style={{ background: 'var(--color-bg-card)' }}>
+                        {it.type === 'tv' ? '剧集' : '电影'}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] text-txt-primary" title={it.path}>{basename(it.path)}</span>
+                        <span className="type-caption text-txt-tertiary">
+                          解析：{it.name}
+                          {it.type === 'tv' && it.season != null
+                            ? it.epDate
+                              ? ` · ${it.epDate}`
+                              : ` · S${String(it.season).padStart(2, '0')}${it.epStart != null ? `E${String(it.epStart).padStart(2, '0')}` : ''}`
+                            : it.year
+                              ? ` · ${it.year}`
+                              : ''}
+                          {it.version ? ` · ${it.version}` : ''}
+                        </span>
+                      </span>
+                      <span
+                        className="type-caption shrink-0 rounded-pill px-2 py-0.5"
+                        style={
+                          it.status === 'renamed'
+                            ? { background: 'rgba(52,199,89,0.15)', color: 'var(--color-success)' }
+                            : it.tmdbId
+                              ? { background: 'rgba(124,58,237,0.12)', color: 'var(--color-accent)' }
+                              : { background: 'var(--color-bg-card)', color: 'var(--text-tertiary)' }
+                        }
+                      >
+                        {it.status === 'renamed' ? '已重命名' : it.tmdbId ? '已匹配' : '未匹配'}
+                      </span>
+                      {!it.tmdbId && (
+                        <>
+                          <Button variant="gray" loading={busyId === it.id} onClick={() => void autoMatchOne(it.id)}>
+                            自动
+                          </Button>
+                          <Button variant="plain" onClick={() => setMatchItem(it)}>
+                            手动
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -633,6 +689,9 @@ export default function RenamerPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'var(--scrim-hero-dim, rgba(0,0,0,0.5))' }} onClick={() => setPreview(null)}>
           <GlassPanel className="flex max-h-[80vh] w-full max-w-[720px] flex-col p-5" bordered onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <h3 className="type-headline mb-3">重命名预览（{preview.length} 项）</h3>
+            <p className="type-caption mb-3 text-txt-tertiary">
+              未匹配 TMDB 的条目将按解析出的名称命名（不含 [tmdbid] 标签）；文件名未变化的条目会自动跳过。
+            </p>
             <div className="mb-3 flex-1 overflow-y-auto rounded-md" style={{ border: '1px solid var(--border-light)' }}>
               {preview.map((p) => {
                 const oldName = p.oldPath.split(/[\\/]/).pop();

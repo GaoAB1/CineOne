@@ -754,7 +754,8 @@ export function buildPreview(ids: number[]): { plan: RenamePlanEntry[]; mode: st
   const plan: RenamePlanEntry[] = [];
   for (const id of ids) {
     const row = getRow(id);
-    if (!row || !row.tmdb_id) continue;
+    // 不强制匹配 TMDB：未匹配条目按解析出的 name/year 兜底命名（不带 [tmdbid] 标签）
+    if (!row) continue;
     plan.push({ id: row.id, oldPath: row.path, newPath: buildNewPath(row, mode) });
   }
   return { plan, mode };
