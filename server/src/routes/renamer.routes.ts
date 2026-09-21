@@ -46,14 +46,13 @@ router.get(
   }),
 );
 
-/** PUT /api/renamer/settings { dirs?: [{type,path}], mode?: 'file'|'full' } */
+/** PUT /api/renamer/settings { dirs?: [{type,path}] } */
 router.put(
   '/settings',
   asyncHandler(async (req, res) => {
     const body = bodyOf(req);
     saveRenamerSettings({
       dirs: body.dirs as Array<{ type: 'movie' | 'tv'; path: string }> | undefined,
-      mode: typeof body.mode === 'string' ? body.mode : undefined,
     });
     ok(res, getRenamerSettings());
   }),
@@ -144,11 +143,11 @@ router.post(
   '/rename/preview',
   asyncHandler(async (req, res) => {
     const ids = idArray(bodyOf(req).ids, 'ids');
-    const { plan, mode } = buildPreview(ids);
+    const { plan } = buildPreview(ids);
     if (plan.length === 0) {
       throw new ApiError(1001, '所选条目均无法生成重命名计划', 400);
     }
-    ok(res, { plan, mode });
+    ok(res, { plan });
   }),
 );
 

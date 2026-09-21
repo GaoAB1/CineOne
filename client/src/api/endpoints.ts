@@ -851,14 +851,13 @@ export interface RenameExecuteResult {
   errors: Array<{ id: number; message: string; oldPath?: string }>;
 }
 
-export function fetchRenamerSettings(): Promise<{ dirs: RenamerMediaDir[]; mode: string }> {
+export function fetchRenamerSettings(): Promise<{ dirs: RenamerMediaDir[] }> {
   return request('/renamer/settings');
 }
 
 export function saveRenamerSettings(input: {
   dirs?: RenamerMediaDir[];
-  mode?: string;
-}): Promise<{ dirs: RenamerMediaDir[]; mode: string }> {
+}): Promise<{ dirs: RenamerMediaDir[] }> {
   return request('/renamer/settings', { method: 'PUT', body: input });
 }
 
@@ -894,7 +893,7 @@ export function batchMatchRenamerItems(ids: number[]): Promise<{ matched: number
   return request('/renamer/match/batch', { method: 'POST', body: { ids } });
 }
 
-export function previewRenamer(ids: number[]): Promise<{ plan: RenamePlanEntry[]; mode: string }> {
+export function previewRenamer(ids: number[]): Promise<{ plan: RenamePlanEntry[] }> {
   return request('/renamer/rename/preview', { method: 'POST', body: { ids } });
 }
 

@@ -213,7 +213,6 @@ function MatchDialog({
 export default function RenamerPage() {
   // 设置
   const [dirs, setDirs] = useState<RenamerMediaDir[]>([]);
-  const [mode, setMode] = useState<'file' | 'full'>('file');
   const [savingSettings, setSavingSettings] = useState(false);
   const [dirPickerOpen, setDirPickerOpen] = useState<'movie' | 'tv' | null>(null);
 
@@ -237,7 +236,6 @@ export default function RenamerPage() {
     try {
       const s = await fetchRenamerSettings();
       setDirs(s.dirs);
-      setMode(s.mode === 'full' ? 'full' : 'file');
     } catch {
       // 静默
     }
@@ -289,7 +287,7 @@ export default function RenamerPage() {
     setSavingSettings(true);
     setError(null);
     try {
-      await saveRenamerSettings({ dirs, mode });
+      await saveRenamerSettings({ dirs });
       setExecResult('重命名设置已保存');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : '保存失败');
@@ -301,7 +299,7 @@ export default function RenamerPage() {
   const startScan = async (): Promise<void> => {
     setError(null);
     try {
-      await saveRenamerSettings({ dirs, mode });
+      await saveRenamerSettings({ dirs });
       const res = await startRenamerScan();
       if (!res.ok) {
         setError(res.message);
@@ -474,18 +472,8 @@ export default function RenamerPage() {
             保存设置
           </Button>
         </div>
-        <SegmentedControl<'file' | 'full'>
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: 'file', label: '原地重命名' },
-            { value: 'full', label: '按 Emby 结构整理' },
-          ]}
-        />
-        <p className="type-caption mt-2 text-txt-tertiary">
-          {mode === 'file'
-            ? '仅重命名文件名，不移动位置。'
-            : '整理为「电影/剧名 (年份)\\Season N\\」目录结构，并清理留下的空目录。'}
+        <p className="type-caption text-txt-tertiary">
+          重命名只在文件原目录内完成，不会移动到其他位置；目录的「电影/剧集」类型用于扫描时的解析提示。
         </p>
       </GlassPanel>
 

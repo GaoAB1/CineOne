@@ -325,10 +325,6 @@ function mediaDirs(): RenamerMediaDir[] {
   }
 }
 
-function renameMode(): 'file' | 'full' {
-  return getSetting('renamer_mode') === 'full' ? 'full' : 'file';
-}
-
 // ==================== scanner ====================
 
 const HIDDEN = new Set(['.git', '.DS_Store', '@eaDir', '$RECYCLE.BIN', 'System Volume Information', 'lost+found', '.thumbnails']);
@@ -698,23 +694,16 @@ function idTag(tmdbId: number | null): string {
   return tmdbId ? ` [tmdbid=${tmdbId}]` : '';
 }
 
-function buildNewPath(item: MediaItemRow, mode: 'file' | 'full'): string {
+function buildNewPath(item: MediaItemRow): string {
   const title = item.tmdb_title || item.name;
   const year = item.tmdb_year || item.year;
   const ext = '.' + (item.extension || 'mkv');
-  const dirs = mediaDirs();
-  const movieRoot = dirs.find((d) => d.type === 'movie')?.path || '';
-  const tvRoot = dirs.find((d) => d.type === 'tv')?.path || '';
 
   if (item.type === 'movie') {
     const base = `${sanitize(title)} (${year ?? ''})`.trim();
     const fileName = item.version
       ? `${base} - ${sanitize(item.version)}${idTag(item.tmdb_id)}${ext}`
       : `${base}${idTag(item.tmdb_id)}${ext}`;
-
-    if (mode === 'full' && movieRoot) {
-      return path.join(movieRoot, base, fileName);
-    }
     return path.join(path.dirname(item.path), fileName);
   }
 
@@ -734,12 +723,7 @@ function buildNewPath(item: MediaItemRow, mode: 'file' | 'full'): string {
   }
   const fileName = `${epPart}${ext}`;
 
-  if (mode === 'full' && tvRoot) {
-    const seriesDir = year ? `${showName} (${year})` : showName;
-    if (item.ep_date) return path.join(tvRoot, seriesDir, fileName);
-    const seasonDir = season > 0 ? `Season ${season}` : 'Specials';
-    return path.join(tvRoot, seriesDir, seasonDir, fileName);
-  }
+  // 只在原目录内改名，绝不移动文件到其他目录
   return path.join(path.dirname(item.path), fileName);
 }
 
@@ -749,16 +733,15 @@ export interface RenamePlanEntry {
   newPath: string;
 }
 
-export function buildPreview(ids: number[]): { plan: RenamePlanEntry[]; mode: string } {
-  const mode = renameMode();
+export function buildPreview(ids: number[]): { plan: RenamePlanEntry[] } {
   const plan: RenamePlanEntry[] = [];
   for (const id of ids) {
     const row = getRow(id);
     // 不强制匹配 TMDB：未匹配条目按解析出的 name/year 兜底命名（不带 [tmdbid] 标签）
     if (!row) continue;
-    plan.push({ id: row.id, oldPath: row.path, newPath: buildNewPath(row, mode) });
+    plan.push({ id: row.id, oldPath: row.path, newPath: buildNewPath(row) });
   }
-  return { plan, mode };
+  return { plan };
 }
 
 function cleanupEmptyDirs(startDir: string): number {
@@ -904,11 +887,11 @@ export function listDirs(targetPath: string): { path: string; parent: string | n
   return { path: abs, parent: parent === abs ? null : parent, dirs };
 }
 
-export function getRenamerSettings(): { dirs: RenamerMediaDir[]; mode: string } {
-  return { dirs: mediaDirs(), mode: renameMode() };
+export function getRenamerSettings(): { dirs: RenamerMediaDir[] } {
+  return { dirs: mediaDirs() };
 }
 
-export function saveRenamerSettings(input: { dirs?: RenamerMediaDir[]; mode?: string }): void {
+export function saveRenamerSettings(input: { dirs?: RenamerMediaDir[] }): void {
   if (input.dirs !== undefined) {
     const clean = (Array.isArray(input.dirs) ? input.dirs : [])
       .filter((d) => d && typeof d.path === 'string' && d.path.trim() && (d.type === 'movie' || d.type === 'tv'))
@@ -919,14 +902,5 @@ export function saveRenamerSettings(input: { dirs?: RenamerMediaDir[]; mode?: st
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
       )
       .run(JSON.stringify(clean));
-  }
-  if (input.mode !== undefined) {
-    const mode = input.mode === 'full' ? 'full' : 'file';
-    getDb()
-      .prepare(
-        `INSERT INTO settings (key, value, updated_at) VALUES ('renamer_mode', ?, datetime('now'))
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
-      )
-      .run(mode);
   }
 }
