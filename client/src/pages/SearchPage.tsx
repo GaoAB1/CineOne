@@ -7,7 +7,8 @@ import { searchMedia } from '../api/endpoints';
 import { ApiClientError } from '../api/http';
 import type { MediaItem } from '../api/types';
 import MediaCard from '../components/media/MediaCard';
-import SegmentedControl from '../components/ui/SegmentedControl';
+import TravelSearchBar from '../components/ui/TravelSearchBar';
+import { Film, Layers } from 'lucide-react';
 import Spinner from '../components/ui/Spinner';
 import GlassPanel from '../components/ui/GlassPanel';
 
@@ -57,34 +58,39 @@ export default function SearchPage() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <i
-            className="ri-search-line pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px]"
-            style={{ color: 'var(--text-tertiary)' }}
-            aria-hidden
-          />
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索电影 / 剧集…"
-            autoFocus
-            aria-label="全局搜索"
-            className="h-11 w-full rounded-pill border border-line bg-card pl-11 pr-4 text-body text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent focus:shadow-[var(--focus-ring)]"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          />
-        </div>
-        <SegmentedControl<TypeFilter>
-          options={[
-            { value: 'all', label: '全部' },
-            { value: 'movie', label: '电影' },
-            { value: 'tv', label: '剧集' },
-          ]}
-          value={typeFilter}
-          onChange={setTypeFilter}
-          ariaLabel="媒体类型过滤"
-        />
-      </div>
+      {/* 胶囊搜索栏：片名输入（450ms 防抖）+ 类型本地过滤 + 立即搜索 */}
+      <TravelSearchBar
+        className="mb-4"
+        ariaLabel="全局搜索"
+        autoFocusFirst
+        actionLabel="立即搜索"
+        onAction={() => void doSearch(keyword)}
+        segments={[
+          {
+            id: 'keyword',
+            label: '片名',
+            icon: Film,
+            kind: 'input',
+            hint: loading ? '正在搜索…' : searched && shown.length > 0 ? `找到 ${shown.length} 项` : '搜索电影 / 剧集…',
+            value: keyword,
+            onChange: setKeyword,
+          },
+          {
+            id: 'type',
+            label: '类型',
+            hint: '全部',
+            icon: Layers,
+            kind: 'select',
+            value: typeFilter,
+            onChange: (v) => setTypeFilter(v as TypeFilter),
+            options: [
+              { value: 'all', label: '全部' },
+              { value: 'movie', label: '电影' },
+              { value: 'tv', label: '剧集' },
+            ],
+          },
+        ]}
+      />
 
       {loading && <Spinner label="正在搜索" />}
       {!loading && error && (
