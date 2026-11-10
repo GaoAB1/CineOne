@@ -27,6 +27,8 @@ import type {
 } from '../api/types';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
+import TravelSearchBar from '../components/ui/TravelSearchBar';
+import { ArrowDownUp, Film, Layers, ListFilter } from 'lucide-react';
 import GlassPanel from '../components/ui/GlassPanel';
 import Spinner from '../components/ui/Spinner';
 
@@ -526,75 +528,52 @@ export default function LibraryPage() {
               <p className="type-caption mb-6 text-txt-tertiary">正在加载观看记录…</p>
             )}
 
-            {/* 分类标题 + 工具栏 */}
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            {/* 分类标题 + 胶囊筛选栏（搜索 / 观看状态 / 排序 / 升降序） */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="type-headline">
                 {contentTitle}
                 <span className="type-caption ml-2 text-txt-tertiary">{total} 项</span>
               </h2>
-              <div className="flex items-center gap-2">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as EmbySortBy)}
-                  aria-label="排序方式"
-                  className="h-[36px] rounded-sm border border-line bg-card px-2 text-[14px] text-txt-primary outline-none focus:border-accent"
-                >
-                  {SORT_OPTIONS.map((s) => (
-                    <option key={s.key} value={s.key}>
-                      按{s.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  aria-label={sortDesc ? '切换为升序' : '切换为降序'}
-                  onClick={() => setSortDesc((p) => !p)}
-                  className="press-spring flex h-[36px] w-[36px] items-center justify-center rounded-sm border border-line bg-card text-txt-secondary transition-colors duration-fast ease-out hover:text-txt-primary"
-                >
-                  <i className={`${sortDesc ? 'ri-sort-desc' : 'ri-sort-asc'} text-[18px]`} aria-hidden />
-                </button>
-              </div>
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <div className="min-w-[200px] flex-1">
-                <InputField
-                  label=""
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder={`在「${contentTitle}」中搜索…`}
-                  autoComplete="off"
-                />
-              </div>
-              <div className="flex gap-2">
-                {PLAYED_FILTERS.map((f) => {
-                  const active = played === f.key;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setPlayed(f.key)}
-                      className="press-spring flex min-h-[36px] items-center rounded-pill px-4 text-[14px] transition-colors duration-fast ease-out"
-                      style={
-                        active
-                          ? {
-                              background: 'var(--surface-warm)',
-                              color: 'var(--color-accent)',
-                              border: '1px solid var(--color-accent)',
-                            }
-                          : {
-                              background: 'var(--color-bg-secondary)',
-                              color: 'var(--text-secondary)',
-                              border: '1px solid transparent',
-                            }
-                      }
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <TravelSearchBar
+              className="mb-4"
+              ariaLabel="媒体库筛选"
+              actionIcon={ArrowDownUp}
+              actionLabel={sortDesc ? '切换为升序' : '切换为降序'}
+              onAction={() => setSortDesc((p) => !p)}
+              segments={[
+                {
+                  id: 'kw',
+                  label: '片名',
+                  icon: Film,
+                  kind: 'input',
+                  hint: loading ? '正在加载媒体库…' : `在「${contentTitle}」中搜索…`,
+                  value: searchInput,
+                  onChange: setSearchInput,
+                },
+                {
+                  id: 'played',
+                  label: '观看状态',
+                  hint: '全部',
+                  icon: Layers,
+                  kind: 'select',
+                  value: played,
+                  onChange: (v) => setPlayed(v as EmbyPlayedFilter),
+                  options: PLAYED_FILTERS.map((f) => ({ value: f.key, label: f.label })),
+                },
+                {
+                  id: 'sort',
+                  label: '排序',
+                  hint: '按名称',
+                  icon: ListFilter,
+                  kind: 'select',
+                  value: sortBy,
+                  onChange: (v) => setSortBy(v as EmbySortBy),
+                  options: SORT_OPTIONS.map((s) => ({ value: s.key, label: `按${s.label}` })),
+                },
+              ]}
+            />
 
             {loadError && (
               <p className="type-caption mb-4" style={{ color: 'var(--color-danger)' }}>{loadError}</p>

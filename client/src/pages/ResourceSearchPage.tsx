@@ -24,6 +24,8 @@ import {
 import { ApiClientError } from '../api/http';
 import type { MediaType } from '../api/types';
 import Button from '../components/ui/Button';
+import TravelSearchBar from '../components/ui/TravelSearchBar';
+import { Film, Layers } from 'lucide-react';
 import GlassPanel from '../components/ui/GlassPanel';
 import SegmentedControl from '../components/ui/SegmentedControl';
 import Spinner from '../components/ui/Spinner';
@@ -356,61 +358,48 @@ export default function ResourceSearchPage() {
         </p>
       </div>
 
-      {/* 搜索框 */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <i
-            className="ri-search-line pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px]"
-            style={{ color: 'var(--text-tertiary)' }}
-            aria-hidden
-          />
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSubmit();
-            }}
-            placeholder="搜索影视名称或规格关键词…"
-            aria-label="资源搜索关键词"
-            className="h-11 w-full rounded-pill border border-line bg-card pl-11 pr-4 text-body text-txt-primary outline-none placeholder:text-txt-tertiary focus:border-accent focus:shadow-[var(--focus-ring)]"
-            style={{ borderRadius: 'var(--radius-pill)' }}
-          />
-        </div>
-        <Button variant="filled" onClick={handleSubmit} loading={loading}>
-          搜索
-        </Button>
-      </div>
+      {/* 胶囊搜索栏：片名提交后更新 ?q=，来源切换自动重搜 */}
+      <TravelSearchBar
+        className="mb-4"
+        ariaLabel="资源搜索"
+        actionLabel="搜索资源"
+        onAction={handleSubmit}
+        segments={[
+          {
+            id: 'keyword',
+            label: '片名',
+            icon: Film,
+            kind: 'input',
+            hint: loading ? '正在检索资源站，首次查询约需 10~30 秒' : '搜索影视名称或规格关键词…',
+            value: input,
+            onChange: setInput,
+          },
+          {
+            id: 'source',
+            label: '来源',
+            hint: '全部来源',
+            icon: Layers,
+            kind: 'select',
+            value: source,
+            onChange: (v) => setSource(v as ResourceSourceFilter),
+            options: SOURCE_FILTERS.map((f) => ({ value: f.key, label: f.label })),
+          },
+        ]}
+      />
 
-      {/* 来源筛选 */}
+      {/* 来源状态：选择已并入上方胶囊栏，这里只保留计数与失败原因 */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {SOURCE_FILTERS.map((f) => {
-          const active = source === f.key;
           const status = sourceStatus.find((s) => s.source === f.key);
+          if (!status) return null;
           return (
-            <button
+            <span
               key={f.key}
-              type="button"
-              onClick={() => setSource(f.key)}
-              className="press-spring flex min-h-[34px] items-center gap-1.5 rounded-pill px-3.5 text-[13px] transition-colors duration-fast ease-out"
-              style={
-                active
-                  ? {
-                      background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
-                      color: 'var(--color-accent)',
-                      border: '1px solid color-mix(in srgb, var(--color-accent) 55%, transparent)',
-                    }
-                  : {
-                      background: 'var(--color-bg-secondary)',
-                      color: 'var(--text-secondary)',
-                      border: '1px solid transparent',
-                    }
-              }
+              className="type-caption tabular-nums rounded-pill px-2.5 py-1"
+              style={{ background: 'var(--color-bg-secondary)', color: 'var(--text-tertiary)' }}
             >
-              {f.label}
-              {status && (
-                <span className="tabular-nums opacity-70">{status.ok ? status.count : '×'}</span>
-              )}
-            </button>
+              {f.label} {status.ok ? status.count : '×'}
+            </span>
           );
         })}
         {sourceStatus.some((s) => !s.ok) && (

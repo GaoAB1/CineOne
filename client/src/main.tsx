@@ -7,6 +7,7 @@ import ReactDOM from 'react-dom/client';
 import 'remixicon/fonts/remixicon.css';
 import './styles/tokens.css';
 import './styles/global.css';
+import './styles/travel-search-bar.css';
 import App from './App';
 import { ThemeProvider } from './stores/ThemeContext';
 import { AuthProvider } from './stores/AuthContext';
